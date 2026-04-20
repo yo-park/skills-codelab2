@@ -85,8 +85,8 @@ pub async fn start_scan(mut multipart: Multipart) -> Result<Json<serde_json::Val
                         "keywords" => config.keywords = value,
                         "pattern_mode" => config.pattern_mode = if value == "regex" { PatternMode::Regex } else { PatternMode::Literal },
                         "case_sensitive" => config.case_sensitive = value,
-                        "context_lines" => config.context_lines = value.parse().unwrap_or(0),
-                        "concurrency" => config.concurrency = value.parse().unwrap_or(1),
+                        "context_lines" => config.context_lines = value.parse::<usize>().unwrap_or(0).min(100),
+                        "concurrency" => config.concurrency = value.parse::<usize>().unwrap_or(1).min(10),
                         "max_matches_per_file" => config.max_matches_per_file = value.parse().unwrap_or(0),
                         _ => {}
                     }
