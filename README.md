@@ -83,6 +83,8 @@ The development followed a rigourous **StartCycle** workflow, ensuring a consist
 
 ## 📋 Usage Guide
 
+![LogAnalyzer UI Main](docs/screenshots/ui_main.png)
+
 1. **Attach Files:** Drag and drop your `.log` files into the File Attach Area.
 2. **Configure Keywords:** Enter keywords or regex patterns in the Keywords Area (one per line).
 3. **Set Context:** Specify how many lines of context you need for each match.
