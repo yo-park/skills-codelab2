@@ -18,7 +18,12 @@ config.private
 *.sublime-workspace
 
 # Build and Artifacts
-app_build/
+app_build/*
+!app_build/backend/
+app_build/backend/*
+!app_build/backend/src/
+!app_build/frontend/
+app_build/frontend/node_modules/
 dist/
 build/
 out/
