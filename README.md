@@ -60,12 +60,26 @@ The server will start at `http://localhost:3000`.
 ## 📁 Project Structure
 
 ```text
-├── app_build/
-│   ├── backend/          # Rust source code (Axum + Scanning Engine)
-│   └── frontend/         # React source code (App + Components)
-├── dev/                  # Development resources (Sample logs)
-└── production_artifacts/ # Technical specifications and assets
+├── app_build/          # Final application code (Backend & Frontend)
+├── .agents/            # AI Agent Configuration & Workflows
+│   ├── agents.md       # Role definitions (PM, Engineer, QA, DevOps)
+│   ├── workflows/      # Automated development cycles
+│   └── skills/         # Specialized AI capabilities (Audit, Deploy, Spec-writing)
+├── dev/                # Development resources & sample logs
+└── production_artifacts/ # Architecture designs & technical specs
 ```
+
+## 🤖 AI-Native Development Infrastructure
+
+This project was built using a multi-agent autonomous workflow located in the `.agents` directory. Each agent has a specialized role within the **Antigravity** environment:
+
+- **Product Manager (@pm):** Architected the system from user requirements into high-level technical specifications.
+- **Full-Stack Engineer (@engineer):** Implemented the Rust/React stack following clean code and DRY principles.
+- **QA Engineer (@qa):** Performed automated audits, bug hunting, and security checks on the implementation.
+- **DevOps Master (@devops):** Managed the build pipeline, local deployment, and environment configurations.
+
+### Automated Workflows
+The development followed a rigourous **StartCycle** workflow, ensuring a consistent loop of specification -> implementation -> auditing -> verification.
 
 ## 📋 Usage Guide
 
