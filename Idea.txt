@@ -1,0 +1,43 @@
+Java(Logback/Log4j) 로그 파일을 로컬 웹 UI로 업로드하고, 대용량 파일도 디스크 저장 없이 메모리 스트리밍 방식으로 고성능 분석하는 단일 실행 파일 기반 도구를 설계하고, 백앤드는 Rust , 프론트 엔드는 React로 하고 
+화면 구조는 다음과 같이 하는 어플리케이션
+
++---------------------------------------------------------------+
+| Sidebar            | Search Logs                              |
+|--------------------+------------------------------------------|
+| Logo/Title         | Header                                   |
+| Search Logs(Active)| - title                                  |
+| Settings           | - start / stop / reset                   |
+|                    |------------------------------------------|
+|                    | File Attach Area                         |
+|                    | - multi-file input                       |
+|                    | - concurrency                            |
+|                    | - max matches per file                   |
+|                    | - case sensitivity                       |
+|                    | - pattern mode                           |
+|                    |------------------------------------------|
+|                    | Keywords Area                            |
+|                    | - textarea                               |
+|                    | - context lines                          |
+|                    |------------------------------------------|
+|                    | Progress Area                            |
+|                    | - per-file progress bar                  |
+|                    | - bytes / lines / matches                |
+|                    |------------------------------------------|
+|                    | Result Area                              |
+|                    | - filter bar                             |
+|                    | - result table                           |
+|                    | - csv download                           |
++---------------------------------------------------------------+
++---------------------------------------------------------------+
+| Sidebar            | Settings                                 |
+|--------------------+------------------------------------------|
+| Logo/Title         | Not Implemented                          |
+| Search Logs        |                                          |
+| Settings(Active)   |                                          |
+|                    |                                          |
+|                    |                                          |
+|                    |                                          |
+|                    |                                          |
+|                    |                                          |
+|                    |                                          |
++---------------------------------------------------------------+
