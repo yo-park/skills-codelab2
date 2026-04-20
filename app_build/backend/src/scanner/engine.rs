@@ -9,6 +9,7 @@ pub struct ScanEngine {
     config: ScanConfig,
     keywords: Vec<String>,
     regexes: Vec<Regex>,
+    search_keywords: Vec<String>,
 }
 
 impl ScanEngine {
@@ -27,18 +28,29 @@ impl ScanEngine {
         }
 
         let mut regexes = Vec::new();
+        let mut search_keywords = Vec::new();
+        let is_case_insensitive = config.case_sensitive == "false";
+
         if matches!(config.pattern_mode, PatternMode::Regex) {
             for kw in &keywords {
                 let mut builder = RegexBuilder::new(kw);
-                builder.case_insensitive(config.case_sensitive == "false");
+                builder.case_insensitive(is_case_insensitive);
                 match builder.build() {
                     Ok(re) => regexes.push(re),
                     Err(e) => return Err(format!("Invalid regex '{}': {}", kw, e)),
                 }
             }
+        } else {
+            for kw in &keywords {
+                if is_case_insensitive {
+                    search_keywords.push(kw.to_lowercase());
+                } else {
+                    search_keywords.push(kw.clone());
+                }
+            }
         }
 
-        Ok(Self { config, keywords, regexes })
+        Ok(Self { config, keywords, regexes, search_keywords })
     }
 
     pub async fn process_file_stream<R: AsyncRead + Unpin>(
@@ -92,12 +104,20 @@ impl ScanEngine {
                         }
                     } else {
                         let is_case_insensitive = self.config.case_sensitive == "false";
-                        let search_content = if is_case_insensitive { line_content.to_lowercase() } else { line_content.clone() };
-                        for kw in &self.keywords {
-                            let search_kw = if is_case_insensitive { kw.to_lowercase() } else { kw.clone() };
-                            if search_content.contains(&search_kw) {
-                                found_kw = Some(kw.clone());
-                                break;
+                        if is_case_insensitive {
+                            let search_content = line_content.to_lowercase();
+                            for (i, search_kw) in self.search_keywords.iter().enumerate() {
+                                if search_content.contains(search_kw) {
+                                    found_kw = Some(self.keywords[i].clone());
+                                    break;
+                                }
+                            }
+                        } else {
+                            for (i, search_kw) in self.search_keywords.iter().enumerate() {
+                                if line_content.contains(search_kw) {
+                                    found_kw = Some(self.keywords[i].clone());
+                                    break;
+                                }
                             }
                         }
                     }
