@@ -45,7 +45,8 @@ impl ScanEngine {
         reader: R,
         total_bytes: u64,
         tx: broadcast::Sender<ScanEvent>,
-    ) {
+        cancel: tokio_util::sync::CancellationToken,
+    ) -> usize {
         let _ = tx.send(ScanEvent::FileStart {
             file_name: file_name.clone(),
             file_index,
@@ -63,6 +64,9 @@ impl ScanEngine {
         let mut lines_after_needed = 0;
 
         loop {
+            if cancel.is_cancelled() {
+                break;
+            }
             line.clear();
             match reader.read_line(&mut line).await {
                 Ok(0) => break,
@@ -143,7 +147,10 @@ impl ScanEngine {
                         });
                     }
                 }
-                Err(_) => break,
+                Err(e) => {
+                    let _ = tx.send(ScanEvent::Error { message: format!("Error reading file: {}", e) });
+                    break;
+                }
             }
         }
 
@@ -156,5 +163,150 @@ impl ScanEngine {
             total_lines: lines_scanned,
             total_matches: matches_found,
         });
+
+        matches_found
+    }
+
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::sync::broadcast;
+    use tokio_util::sync::CancellationToken;
+    use std::io::Cursor;
+
+    #[tokio::test]
+    async fn test_literal_search() {
+        let config = ScanConfig {
+            keywords: "hello\nworld".to_string(),
+            pattern_mode: PatternMode::Literal,
+            case_sensitive: "false".to_string(),
+            context_lines: 0,
+            concurrency: 1,
+            max_matches_per_file: 0,
+        };
+        let engine = ScanEngine::new(config).unwrap();
+        let (tx, mut rx) = broadcast::channel(10);
+        let cancel = CancellationToken::new();
+        
+        let content = "This is a hello test\nAnother line\nWorld here";
+        let reader = Cursor::new(content.as_bytes());
+
+        let handle = tokio::spawn(async move {
+            engine.process_file_stream(0, "test.txt".to_string(), reader, content.len() as u64, tx, cancel).await
+        });
+
+        let mut matches = 0;
+        while let Ok(event) = rx.recv().await {
+            match event {
+                ScanEvent::Match(m) => {
+                    matches += 1;
+                    if matches == 1 {
+                        assert_eq!(m.keyword, "hello");
+                        assert_eq!(m.line_number, 1);
+                    } else if matches == 2 {
+                        assert_eq!(m.keyword, "world");
+                        assert_eq!(m.line_number, 3);
+                    }
+                }
+                ScanEvent::ScanDone { .. } => break,
+                ScanEvent::FileDone { .. } => break,
+                _ => {}
+            }
+        }
+
+        let total_matches = handle.await.unwrap();
+        assert_eq!(total_matches, 2);
+    }
+
+    #[tokio::test]
+    async fn test_regex_search() {
+        let config = ScanConfig {
+            keywords: "h.l+o\n[0-9]+".to_string(),
+            pattern_mode: PatternMode::Regex,
+            case_sensitive: "false".to_string(),
+            context_lines: 0,
+            concurrency: 1,
+            max_matches_per_file: 0,
+        };
+        let engine = ScanEngine::new(config).unwrap();
+        let (tx, mut rx) = broadcast::channel(10);
+        let cancel = CancellationToken::new();
+        
+        let content = "hello world\nThere are 123 apples\nTesting hllo";
+        let reader = Cursor::new(content.as_bytes());
+
+        let handle = tokio::spawn(async move {
+            engine.process_file_stream(0, "test.txt".to_string(), reader, content.len() as u64, tx, cancel).await
+        });
+
+        let mut matches = 0;
+        while let Ok(event) = rx.recv().await {
+            match event {
+                ScanEvent::Match(m) => {
+                    matches += 1;
+                    if matches == 1 {
+                        assert_eq!(m.keyword, "h.l+o");
+                        assert_eq!(m.content, "hello world");
+                    } else if matches == 2 {
+                        assert_eq!(m.keyword, "[0-9]+");
+                        assert_eq!(m.content, "There are 123 apples");
+                    } else if matches == 3 {
+                        assert_eq!(m.keyword, "h.l+o");
+                        assert_eq!(m.content, "Testing hllo");
+                    }
+                }
+                ScanEvent::FileDone { .. } => break,
+                _ => {}
+            }
+        }
+
+        let total_matches = handle.await.unwrap();
+        assert_eq!(total_matches, 3);
+    }
+
+    #[tokio::test]
+    async fn test_context_lines() {
+        let config = ScanConfig {
+            keywords: "TARGET".to_string(),
+            pattern_mode: PatternMode::Literal,
+            case_sensitive: "true".to_string(),
+            context_lines: 2,
+            concurrency: 1,
+            max_matches_per_file: 0,
+        };
+        let engine = ScanEngine::new(config).unwrap();
+        let (tx, mut rx) = broadcast::channel(10);
+        let cancel = CancellationToken::new();
+        
+        let content = "line1\nline2\nline3 TARGET\nline4\nline5\nline6";
+        let reader = Cursor::new(content.as_bytes());
+
+        let handle = tokio::spawn(async move {
+            engine.process_file_stream(0, "test.txt".to_string(), reader, content.len() as u64, tx, cancel).await
+        });
+
+        let mut match_received = false;
+        while let Ok(event) = rx.recv().await {
+            match event {
+                ScanEvent::Match(m) => {
+                    match_received = true;
+                    assert_eq!(m.line_number, 3);
+                    assert_eq!(m.context_before.len(), 2);
+                    assert_eq!(m.context_before[0], "line1");
+                    assert_eq!(m.context_before[1], "line2");
+                    assert_eq!(m.context_after.len(), 2);
+                    assert_eq!(m.context_after[0], "line4");
+                    assert_eq!(m.context_after[1], "line5");
+                }
+                ScanEvent::FileDone { .. } => break,
+                _ => {}
+            }
+        }
+
+        assert!(match_received);
+        let total_matches = handle.await.unwrap();
+        assert_eq!(total_matches, 1);
     }
 }

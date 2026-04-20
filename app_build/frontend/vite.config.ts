@@ -12,8 +12,16 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    rolldownOptions: {
+      // Future-proofing for Vite 8/Rolldown
+    }
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rolldownOptions: {
+      // Future-proofing for Vite 8/Rolldown
+    }
   },
 });

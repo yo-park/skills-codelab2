@@ -43,62 +43,64 @@ pub async fn start_scan(mut multipart: Multipart) -> Result<Json<serde_json::Val
     let tx_clone = tx.clone();
     let cancel_clone = cancellation_token.clone();
 
-    tokio::spawn(async move {
-        tracing::info!("Spawned scan task for {}", scan_id_clone);
-        let mut file_index = 0;
-        let mut engine = None;
+        tokio::spawn(async move {
+            tracing::info!("Spawned scan task for {}", scan_id_clone);
+            let mut file_index = 0;
+            let mut total_matches = 0;
+            let mut engine = None;
 
-        while let Ok(Some(field)) = multipart.next_field().await {
-            if cancel_clone.is_cancelled() { 
-                tracing::info!("Scan {} cancelled", scan_id_clone);
-                break; 
-            }
-            
-            let name = field.name().unwrap_or("").to_string();
-            if name == "files" {
-                let file_name = field.file_name().unwrap_or("unknown").to_string();
-                tracing::info!("Processing file: {} (index {})", file_name, file_index);
+            while let Ok(Some(field)) = multipart.next_field().await {
+                if cancel_clone.is_cancelled() { 
+                    tracing::info!("Scan {} cancelled", scan_id_clone);
+                    break; 
+                }
                 
-                // Lazy-initialize engine if we haven't yet (assuming config came first)
-                if engine.is_none() {
-                    match ScanEngine::new(config.clone()) {
-                        Ok(e) => {
-                            engine = Some(Arc::new(e));
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to initialize ScanEngine: {}", e);
-                            let _ = tx_clone.send(ScanEvent::Error { message: e });
-                            break;
+                let name = field.name().unwrap_or("").to_string();
+                if name == "files" {
+                    let file_name = field.file_name().unwrap_or("unknown").to_string();
+                    tracing::info!("Processing file: {} (index {})", file_name, file_index);
+                    
+                    if engine.is_none() {
+                        match ScanEngine::new(config.clone()) {
+                            Ok(e) => {
+                                engine = Some(Arc::new(e));
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to initialize ScanEngine: {}", e);
+                                let _ = tx_clone.send(ScanEvent::Error { message: e });
+                                break;
+                            }
                         }
                     }
-                }
 
-                if let Some(ref e) = engine {
-                    let stream = field.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
-                    let reader = StreamReader::new(stream);
-                    e.process_file_stream(file_index, file_name, reader, 0, tx_clone.clone()).await;
-                    file_index += 1;
-                }
-            } else {
-                if let Ok(value) = field.text().await {
-                    match name.as_str() {
-                        "keywords" => config.keywords = value,
-                        "pattern_mode" => config.pattern_mode = if value == "regex" { PatternMode::Regex } else { PatternMode::Literal },
-                        "case_sensitive" => config.case_sensitive = value,
-                        "context_lines" => config.context_lines = value.parse().unwrap_or(0),
-                        "concurrency" => config.concurrency = value.parse().unwrap_or(1),
-                        "max_matches_per_file" => config.max_matches_per_file = value.parse().unwrap_or(0),
-                        _ => {}
+                    if let Some(ref e) = engine {
+                        let stream = field.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+                        let reader = StreamReader::new(stream);
+                        let m = e.process_file_stream(file_index, file_name, reader, 0, tx_clone.clone(), cancel_clone.clone()).await;
+                        total_matches += m;
+                        file_index += 1;
+                    }
+                } else {
+                    if let Ok(value) = field.text().await {
+                        match name.as_str() {
+                            "keywords" => config.keywords = value,
+                            "pattern_mode" => config.pattern_mode = if value == "regex" { PatternMode::Regex } else { PatternMode::Literal },
+                            "case_sensitive" => config.case_sensitive = value,
+                            "context_lines" => config.context_lines = value.parse().unwrap_or(0),
+                            "concurrency" => config.concurrency = value.parse().unwrap_or(1),
+                            "max_matches_per_file" => config.max_matches_per_file = value.parse().unwrap_or(0),
+                            _ => {}
+                        }
                     }
                 }
             }
-        }
 
-        tracing::info!("Scan {} completed, total files: {}", scan_id_clone, file_index);
-        let _ = tx_clone.send(ScanEvent::ScanDone {
-            total_files: file_index,
-            total_matches: 0,
-        });
+            tracing::info!("Scan {} completed, total files: {}, total matches: {}", scan_id_clone, file_index, total_matches);
+            let _ = tx_clone.send(ScanEvent::ScanDone {
+                total_files: file_index,
+                total_matches,
+            });
+
 
         // Keep session for a while to allow UI to finish reading
         tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
