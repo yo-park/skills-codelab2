@@ -2,8 +2,6 @@
 
 **LogAnalyzer** is a high-performance, real-time Java log stream scanner designed to handle large-scale log files with minimal memory footprint. It combines the safety and speed of **Rust** in the backend with the reactivity of **React** in the frontend, providing a seamless experience for developers to debug and analyze logs.
 
-![Project Banner](https://raw.githubusercontent.com/lucide-react/lucide/main/icons/shield.svg) <!-- Representative icon -->
-
 ## 🚀 Key Features
 
 - **Streaming Scan:** Leverages Rust's non-blocking I/O to process gigabytes of log data without full buffering.
