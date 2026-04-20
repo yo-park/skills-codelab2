@@ -12,7 +12,10 @@ pub struct ScanEngine {
 }
 
 impl ScanEngine {
-    pub fn new(config: ScanConfig) -> Result<Self, String> {
+    pub fn new(mut config: ScanConfig) -> Result<Self, String> {
+        config.context_lines = config.context_lines.min(100);
+        config.concurrency = config.concurrency.min(10);
+
         let keywords: Vec<String> = config.keywords
             .lines()
             .map(|s| s.trim().to_string())
@@ -156,5 +159,41 @@ impl ScanEngine {
             total_lines: lines_scanned,
             total_matches: matches_found,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{PatternMode, ScanConfig};
+
+    #[test]
+    fn test_context_lines_capping() {
+        let config = ScanConfig {
+            keywords: "test".to_string(),
+            pattern_mode: PatternMode::Literal,
+            case_sensitive: "false".to_string(),
+            context_lines: 200,
+            concurrency: 1,
+            max_matches_per_file: 0,
+        };
+
+        let engine = ScanEngine::new(config).unwrap();
+        assert_eq!(engine.config.context_lines, 100);
+    }
+
+    #[test]
+    fn test_context_lines_no_capping_when_under_limit() {
+        let config = ScanConfig {
+            keywords: "test".to_string(),
+            pattern_mode: PatternMode::Literal,
+            case_sensitive: "false".to_string(),
+            context_lines: 10,
+            concurrency: 1,
+            max_matches_per_file: 0,
+        };
+
+        let engine = ScanEngine::new(config).unwrap();
+        assert_eq!(engine.config.context_lines, 10);
     }
 }
