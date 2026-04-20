@@ -22,6 +22,7 @@ app_build/*
 !app_build/backend/
 app_build/backend/*
 !app_build/backend/src/
+app_build/backend/target/
 !app_build/frontend/
 app_build/frontend/node_modules/
 dist/
@@ -30,7 +31,6 @@ out/
 bin/
 
 # Node.js
-node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -41,7 +41,6 @@ yarn-error.log*
 .env.production.local
 
 # Rust
-/target/
 **/*.rs.bk
 Cargo.lock
 
