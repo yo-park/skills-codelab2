@@ -2,6 +2,9 @@
 
 **LogAnalyzer** is a high-performance, real-time Java log stream scanner designed to handle large-scale log files with minimal memory footprint. It combines the safety and speed of **Rust** in the backend with the reactivity of **React** in the frontend, providing a seamless experience for developers to debug and analyze logs.
 
+> [!NOTE]
+> This project was developed, debugged, and verified by the **Gemini 3 Flash** AI agent using the **Antigravity** autonomous coding tool. This ensures a high standard of implementation through the **Autonomous AI Developer Pipelines**.
+
 ## 🚀 Key Features
 
 - **Streaming Scan:** Leverages Rust's non-blocking I/O to process gigabytes of log data without full buffering.
