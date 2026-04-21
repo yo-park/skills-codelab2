@@ -28,6 +28,8 @@ export interface ScanConfig {
   contextLines: number;
   concurrency: number;
   maxMatchesPerFile: number;
+  startTime?: string;
+  endTime?: string;
 }
 
 export interface ServerMatch {

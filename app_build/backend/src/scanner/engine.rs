@@ -4,11 +4,17 @@ use regex::{Regex, RegexBuilder};
 use crate::models::{MatchEntry, PatternMode, ScanConfig, ScanEvent};
 use tokio::sync::broadcast;
 use tokio::io::AsyncRead;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref TIMESTAMP_REGEX: Regex = Regex::new(r"^(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d{3})?)").unwrap();
+}
 
 pub struct ScanEngine {
     config: ScanConfig,
     keywords: Vec<String>,
     regexes: Vec<Regex>,
+    ts_regex: Regex,
 }
 
 impl ScanEngine {
@@ -38,7 +44,12 @@ impl ScanEngine {
             }
         }
 
-        Ok(Self { config, keywords, regexes })
+        Ok(Self { 
+            config, 
+            keywords, 
+            regexes,
+            ts_regex: TIMESTAMP_REGEX.clone(),
+        })
     }
 
     pub async fn process_file_stream<R: AsyncRead + Unpin>(
@@ -79,6 +90,38 @@ impl ScanEngine {
                         lines_after_needed -= 1;
                         if lines_after_needed == 0 {
                             let _ = tx.send(ScanEvent::Match(pending_match.take().unwrap()));
+                        }
+                    }
+
+                    // Time Range Filtering
+                    if self.config.start_time.is_some() || self.config.end_time.is_some() {
+                        if let Some(caps) = self.ts_regex.captures(&line_content) {
+                            let ts = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                            if let Some(ref start) = self.config.start_time {
+                                if ts < start.as_str() {
+                                    if self.config.context_lines > 0 {
+                                        if before_buffer.len() >= self.config.context_lines {
+                                            before_buffer.pop_front();
+                                        }
+                                        before_buffer.push_back(line_content);
+                                    }
+                                    continue;
+                                }
+                            }
+                            if let Some(ref end) = self.config.end_time {
+                                if ts > end.as_str() {
+                                    // Once we pass the end time, if logs are sorted, we could break, 
+                                    // but we don't know if they are sorted by time across all files.
+                                    // For safety, we just skip.
+                                    if self.config.context_lines > 0 {
+                                        if before_buffer.len() >= self.config.context_lines {
+                                            before_buffer.pop_front();
+                                        }
+                                        before_buffer.push_back(line_content);
+                                    }
+                                    continue;
+                                }
+                            }
                         }
                     }
 
@@ -176,6 +219,8 @@ mod tests {
             context_lines: 200,
             concurrency: 1,
             max_matches_per_file: 0,
+            start_time: None,
+            end_time: None,
         };
 
         let engine = ScanEngine::new(config).unwrap();
@@ -191,6 +236,8 @@ mod tests {
             context_lines: 10,
             concurrency: 1,
             max_matches_per_file: 0,
+            start_time: None,
+            end_time: None,
         };
 
         let engine = ScanEngine::new(config).unwrap();

@@ -27,6 +27,7 @@ The final deliverable is a single binary (`loganalyzer`) that embeds the React f
 | FR-11 | **CSV Export** | Download current results as a `.csv` file. |
 | FR-12 | **Scan Controls** | Start, Stop (abort mid-scan), and Reset buttons to manage the scan lifecycle. |
 | FR-13 | **Sidebar Navigation** | Navigate between "Search Logs" (main) and "Settings" (placeholder) pages. |
+| FR-14 | **Time Range Filter** | Specify a Start and End timestamp (ISO8601 or similar) to filter log entries during scanning. |
 
 ### 2.2 Non-Functional Requirements
 
@@ -97,6 +98,8 @@ The final deliverable is a single binary (`loganalyzer`) that embeds the React f
 | `context_lines` | number | Lines of context around each match. |
 | `concurrency` | number | Max parallel file processing (1–8). |
 | `max_matches_per_file` | number | 0 = unlimited. |
+| `start_time` | string | Optional ISO8601 timestamp for filtering. |
+| `end_time` | string | Optional ISO8601 timestamp for filtering. |
 
 **Response**: `200 OK` with JSON body:
 ```json
@@ -148,7 +151,8 @@ App
 │   │   └── PatternModeSelect (Literal / Regex)
 │   ├── KeywordsArea
 │   │   ├── KeywordsTextarea
-│   │   └── ContextLinesInput
+│   │   ├── ContextLinesInput
+│   │   └── TimeRangeInputs (Start / End Time)
 │   ├── ProgressArea
 │   │   └── FileProgressBar[] (per file: name, bar, bytes/lines/matches)
 │   └── ResultArea
@@ -162,31 +166,29 @@ App
 ### 5.1 Wireframe Reference
 
 ```
-+---------------------------------------------------------------+
-| Sidebar (200px)    | Main Content Area                        |
-|--------------------+------------------------------------------+
-| Logo/Title         | [Search Logs]        [Start][Stop][Reset] |
-| ● Search Logs      |------------------------------------------|
-|   Settings          | 📎 File Attach Area                      |
-|                    | [Choose Files...] [Drag & Drop Zone]     |
-|                    | Concurrency: [===3===]                   |
-|                    | Max matches: [__100__] Case: [✓] Regex:[○]|
-|                    |------------------------------------------|
-|                    | 🔍 Keywords                               |
-|                    | [                                    ]   |
-|                    | [  textarea for keywords             ]   |
-|                    | Context lines: [__3__]                   |
-|                    |------------------------------------------|
-|                    | 📊 Progress                               |
-|                    | app.log    [████████░░] 80%  45K lines   |
-|                    | server.log [████░░░░░░] 40%  12K lines   |
-|                    |------------------------------------------|
-|                    | 📋 Results (142 matches)    [⬇ CSV]      |
-|                    | [Filter: ________]                       |
-|                    | File    | Line | Keyword | Content       |
-|                    | app.log | 1234 | ERROR   | NullPointer  |
-|                    | app.log | 5678 | WARN    | Timeout...    |
-+---------------------------------------------------------------+
++-------------------------------------------------------------------+
+| Sidebar (200px)    | Main Content Area                            |
+|--------------------+----------------------------------------------|
+| Logo/Title         | [Search Logs]                                |
+| ● Search Logs      |----------------------------------------------|
+|   Settings          | 📎 File Attach Area   | 🔍 Keywords          |
+|                    | [Choose Files...]     | [              ]     |
+|                    | [Drag & Drop Zone]    | [ textarea for ]     |
+|                    | Concurrency: [===3=]  | [ keywords     ]     |
+|                    | Max matches: [__100]  | Context: [__1__]     |
+|                    | Case: [✓] Regex: [○]  | Time: [__Range_]     |
+|                    |                       | [Start][Stop][Reset] |
+|                    |----------------------------------------------|
+|                    | 📋 Results (142 matches)     [⬇ CSV]         |
+|                    | [Filter: ________]                           |
+|                    | File    | Line | Keyword | Content           |
+|                    | app.log | 1234 | ERROR   | NullPointer       |
+|                    | app.log | 5678 | WARN    | Timeout...        |
+|                    |----------------------------------------------|
+|                    | 📊 Progress                                  |
+|                    | app.log    [████████░░] 80%  45K lines       |
+|                    | server.log [████░░░░░░] 40%  12K lines       |
++-------------------------------------------------------------------+
 ```
 
 ---
@@ -205,6 +207,8 @@ interface ScanStore {
   contextLines: number;
   concurrency: number;
   maxMatchesPerFile: number;
+  startTime: string;
+  endTime: string;
 
   // Scan lifecycle
   scanId: string | null;
@@ -281,7 +285,8 @@ Incoming multipart bytes
            ▼
 ┌──────────────────────┐
 │  Pattern Matcher      │  Apply regex/literal search per complete line
-│  (regex crate)        │  Track line numbers, collect context window
+│  (regex crate)        │  Filter by Time Range (if specified)
+│                      │  Track line numbers, collect context window
 └──────────┬───────────┘
            │
            ▼

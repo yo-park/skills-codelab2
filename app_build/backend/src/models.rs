@@ -16,6 +16,8 @@ pub struct ScanConfig {
     pub context_lines: usize,
     pub concurrency: usize,
     pub max_matches_per_file: usize,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]

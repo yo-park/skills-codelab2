@@ -1,43 +1,37 @@
 Design a single-executable tool that allows users to upload Java (Logback/Log4j) log files via a local web UI, enabling high-performance analysis through memory streaming without disk storage for large-scale files.
 The application should feature a Rust backend and a React frontend with the following layout:
 
-+---------------------------------------------------------------+
-| Sidebar            | Search Logs                              |
-|--------------------+------------------------------------------|
-| Logo/Title         | Header                                   |
-| Search Logs(Active)| - title                                  |
-| Settings           | - start / stop / reset                   |
-|                    |------------------------------------------|
-|                    | File Attach Area                         |
-|                    | - multi-file input                       |
-|                    | - concurrency                            |
-|                    | - max matches per file                   |
-|                    | - case sensitivity                       |
-|                    | - pattern mode                           |
-|                    |------------------------------------------|
-|                    | Keywords Area                            |
-|                    | - textarea                               |
-|                    | - context lines                          |
-|                    |------------------------------------------|
-|                    | Progress Area                            |
-|                    | - per-file progress bar                  |
-|                    | - bytes / lines / matches                |
-|                    |------------------------------------------|
-|                    | Result Area                              |
-|                    | - filter bar                             |
-|                    | - result table                           |
-|                    | - csv download                           |
-+---------------------------------------------------------------+
-+---------------------------------------------------------------+
-| Sidebar            | Settings                                 |
-|--------------------+------------------------------------------|
-| Logo/Title         | Not Implemented                          |
-| Search Logs        |                                          |
-| Settings(Active)   |                                          |
-|                    |                                          |
-|                    |                                          |
-|                    |                                          |
-|                    |                                          |
-|                    |                                          |
-|                    |                                          |
-+---------------------------------------------------------------+
++-----------------------------------------------------------------+
+| Sidebar            | Search Logs                                |
+|--------------------+--------------------------------------------|
+| Logo/Title         | Header                                     |
+| Search Logs(Active)| - title                                    |
+| Settings           |--------------------------------------------|
+|                    | File Attach Area         | Keywords Area   |
+|                    | - multi-file input       | - textarea      |
+|                    | - concurrency            | - context lines |
+|                    | - pattern mode           | - time range    |
+|                    | - max matches per file   | - start/stop,reset|
+|                    | - case sensitivity       |                 |
+|                    |--------------------------------------------|
+|                    | Progress Area                              |
+|                    | - per-file progress bar                    |
+|                    | - bytes / lines / matches                  |
+|                    |--------------------------------------------|
+|                    | Result Area                                |
+|                    | - filter bar                               |
+|                    | - result table                             |
+|                    | - csv download                             |
++-----------------------------------------------------------------+
++-----------------------------------------------------------------+
+| Sidebar            | Settings                                   |
+|--------------------+--------------------------------------------|
+| Logo/Title         | Not Implemented                            |
+| Search Logs        |                                            |
+| Settings(Active)   |                                            |
+|                    |                                            |
+|                    |                                            |
+|                    |                                            |
+|                    |                                            |
+|                    |                                            |
++-----------------------------------------------------------------+

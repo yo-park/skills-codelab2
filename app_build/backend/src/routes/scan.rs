@@ -21,6 +21,8 @@ pub async fn start_scan(mut multipart: Multipart) -> Result<Json<serde_json::Val
         context_lines: 0,
         concurrency: 1,
         max_matches_per_file: 0,
+        start_time: None,
+        end_time: None,
     };
 
     // Store fields to process later? No, we must process files sequentially 
@@ -88,6 +90,8 @@ pub async fn start_scan(mut multipart: Multipart) -> Result<Json<serde_json::Val
                         "context_lines" => config.context_lines = value.parse::<usize>().unwrap_or(0).min(100),
                         "concurrency" => config.concurrency = value.parse::<usize>().unwrap_or(1).min(10),
                         "max_matches_per_file" => config.max_matches_per_file = value.parse().unwrap_or(0),
+                        "start_time" => config.start_time = Some(value).filter(|s| !s.is_empty()),
+                        "end_time" => config.end_time = Some(value).filter(|s| !s.is_empty()),
                         _ => {}
                     }
                 }

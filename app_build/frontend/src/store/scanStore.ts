@@ -27,6 +27,8 @@ interface ScanState extends ScanConfig {
   setContextLines: (val: number) => void;
   setConcurrency: (val: number) => void;
   setMaxMatchesPerFile: (val: number) => void;
+  setStartTime: (val: string) => void;
+  setEndTime: (val: string) => void;
   
   startScan: () => Promise<void>;
   stopScan: () => Promise<void>;
@@ -42,6 +44,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
   contextLines: 3,
   concurrency: 3,
   maxMatchesPerFile: 0,
+  startTime: '',
+  endTime: '',
   
   scanId: null,
   scanStatus: 'idle',
@@ -56,6 +60,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
   setContextLines: (contextLines) => set({ contextLines }),
   setConcurrency: (concurrency) => set({ concurrency }),
   setMaxMatchesPerFile: (maxMatchesPerFile) => set({ maxMatchesPerFile }),
+  setStartTime: (startTime) => set({ startTime }),
+  setEndTime: (endTime) => set({ endTime }),
 
   resetScan: () => set({
     scanId: null,
@@ -66,7 +72,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
   }),
 
   startScan: async () => {
-    const { files, keywords, patternMode, caseSensitive, contextLines, concurrency, maxMatchesPerFile } = get();
+    const { files, keywords, patternMode, caseSensitive, contextLines, concurrency, maxMatchesPerFile, startTime, endTime } = get();
     
     if (files.length === 0) {
       set({ error: "Please select files to scan." });
@@ -86,6 +92,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
     formData.append('context_lines', String(contextLines));
     formData.append('concurrency', String(concurrency));
     formData.append('max_matches_per_file', String(maxMatchesPerFile));
+    if (startTime) formData.append('start_time', startTime);
+    if (endTime) formData.append('end_time', endTime);
     
     files.forEach(file => formData.append('files', file));
 
