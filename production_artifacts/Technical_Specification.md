@@ -141,8 +141,7 @@ App
 │   └── NavItem: "Settings"
 ├── SearchLogsPage
 │   ├── Header
-│   │   ├── PageTitle ("Search Logs")
-│   │   └── ActionButtons (Start / Stop / Reset)
+│   │   └── PageTitle ("Search Logs")
 │   ├── FileAttachArea
 │   │   ├── FileInput (multi-file, drag-and-drop)
 │   │   ├── ConcurrencySlider (1–8)
@@ -152,7 +151,8 @@ App
 │   ├── KeywordsArea
 │   │   ├── KeywordsTextarea
 │   │   ├── ContextLinesInput
-│   │   └── TimeRangeInputs (Start / End Time)
+│   │   ├── TimeRangeInputs (Start / End Time)
+│   │   └── ActionButtons (Start / Stop / Reset)
 │   ├── ProgressArea
 │   │   └── FileProgressBar[] (per file: name, bar, bytes/lines/matches)
 │   └── ResultArea
