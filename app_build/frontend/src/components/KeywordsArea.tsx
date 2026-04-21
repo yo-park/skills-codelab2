@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, AlignLeft, Clock } from 'lucide-react';
+import { Search, AlignLeft, Clock, Play, Square, RotateCcw } from 'lucide-react';
 import { useScanStore } from '../store/scanStore';
 
 const KeywordsArea: React.FC = () => {
@@ -8,7 +8,7 @@ const KeywordsArea: React.FC = () => {
     contextLines, setContextLines, 
     startTime, setStartTime,
     endTime, setEndTime,
-    scanStatus 
+    scanStatus, startScan, stopScan, resetScan, files
   } = useScanStore();
   const isRunning = scanStatus === 'running';
 
@@ -62,6 +62,32 @@ const KeywordsArea: React.FC = () => {
             disabled={isRunning}
           />
         </div>
+      </div>
+      <div className="action-buttons" style={{ marginTop: '24px', justifyContent: 'flex-start' }}>
+        <button 
+          className="primary" 
+          onClick={startScan} 
+          disabled={isRunning || files.length === 0}
+        >
+          <Play size={16} />
+          Start
+        </button>
+        <button 
+          className="danger" 
+          onClick={stopScan} 
+          disabled={!isRunning}
+        >
+          <Square size={16} />
+          Stop
+        </button>
+        <button 
+          className="secondary" 
+          onClick={resetScan}
+          disabled={isRunning}
+        >
+          <RotateCcw size={16} />
+          Reset
+        </button>
       </div>
     </section>
   );
