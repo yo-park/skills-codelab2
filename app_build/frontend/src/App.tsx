@@ -12,6 +12,8 @@ const App: React.FC = () => {
 
   return (
     <>
+      <div className="bg-glow-tr" />
+      <div className="bg-glow-bl" />
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
       <main className="main-content">
         {activeTab === 'search' ? (
@@ -25,6 +27,17 @@ const App: React.FC = () => {
               <ProgressArea />
               <ResultArea />
             </div>
+            <footer>
+              <div className="footer-stats">
+                <span>CPU: –</span>
+                <span>RAM: –</span>
+                <span>SCRIPTS: LOADED</span>
+              </div>
+              <div className="footer-secure">
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>security</span>
+                ENCRYPTED END-TO-END
+              </div>
+            </footer>
           </>
         ) : (
           <SettingsPage />

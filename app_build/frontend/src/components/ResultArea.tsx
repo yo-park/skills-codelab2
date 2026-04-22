@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { Table, Download, Filter } from 'lucide-react';
 import { useScanStore } from '../store/scanStore';
 
 const ResultArea: React.FC = () => {
@@ -12,7 +11,7 @@ const ResultArea: React.FC = () => {
     let result = matches;
     if (filter) {
       const lowerFilter = filter.toLowerCase();
-      result = matches.filter(m => 
+      result = matches.filter(m =>
         m.fileName.toLowerCase().includes(lowerFilter) ||
         m.content.toLowerCase().includes(lowerFilter) ||
         m.keyword.toLowerCase().includes(lowerFilter)
@@ -27,7 +26,6 @@ const ResultArea: React.FC = () => {
     return filteredMatches.slice(start, start + pageSize);
   }, [filteredMatches, currentPage, pageSize]);
 
-  // Reset to page 1 when filter or page size changes
   React.useEffect(() => {
     setCurrentPage(1);
   }, [filter, pageSize]);
@@ -40,12 +38,12 @@ const ResultArea: React.FC = () => {
       m.keyword,
       m.content.replace(/"/g, '""')
     ]);
-    
+
     const csvContent = [
       headers.join(','),
       ...rows.map(r => r.map(cell => `"${cell}"`).join(','))
     ].join('\n');
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -56,75 +54,92 @@ const ResultArea: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // Build visible page numbers
+  const visiblePages = useMemo(() => {
+    const pages: number[] = [];
+    for (let i = Math.max(1, currentPage - 1); i <= Math.min(totalPages, currentPage + 1); i++) {
+      pages.push(i);
+    }
+    return pages;
+  }, [currentPage, totalPages]);
+
   return (
-    <section className="card results-area" style={{ flex: 1 }}>
-      <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Table size={18} />
-          Result Area ({filteredMatches.length} matches)
+    <section className="results-section">
+      {/* Toolbar */}
+      <div className="results-toolbar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
+          <div className="results-filter-wrap">
+            <span className="material-symbols-outlined results-filter-icon">filter_alt</span>
+            <input
+              className="results-filter-input"
+              type="text"
+              placeholder="Filter by pattern, file, or content..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              id="result-filter-input"
+            />
+          </div>
+
+          <div className="page-size-wrap">
+            <label htmlFor="page-size" style={{ fontSize: '0.75rem' }}>Rows:</label>
+            <select
+              id="page-size"
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+            >
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
         </div>
-        <button className="secondary" onClick={downloadCSV} disabled={filteredMatches.length === 0}>
-          <Download size={14} />
-          CSV Download
+
+        <button
+          className="outline-btn"
+          onClick={downloadCSV}
+          disabled={filteredMatches.length === 0}
+          id="btn-download-csv"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span>
+          Download CSV
         </button>
       </div>
 
-      <div className="filter-bar">
-        <div style={{ position: 'relative', width: '300px' }}>
-          <Filter size={14} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-secondary)' }} />
-          <input 
-            type="text" 
-            placeholder="Filter results..." 
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            style={{ width: '100%', paddingLeft: 32 }}
-          />
-        </div>
-        <div className="pagination-controls" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <label htmlFor="page-size" style={{ fontSize: '0.8125rem' }}>Rows per page:</label>
-          <select 
-            id="page-size"
-            value={pageSize}
-            onChange={(e) => setPageSize(Number(e.target.value))}
-            style={{ padding: '4px 8px' }}
-          >
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-        </div>
-      </div>
-
+      {/* Table */}
       <div className="table-wrapper">
         <table>
           <thead>
             <tr>
-              <th style={{ width: '150px' }}>File</th>
-              <th style={{ width: '80px' }}>Line</th>
-              <th style={{ width: '100px' }}>Keyword</th>
-              <th>Content</th>
+              <th>File Name</th>
+              <th style={{ width: 96 }}>Line No</th>
+              <th style={{ width: 160 }}>Pattern Match</th>
+              <th>Content Fragment</th>
             </tr>
           </thead>
           <tbody>
             {paginatedMatches.map((match) => (
               <tr key={match.id}>
-                <td style={{ color: 'var(--text-secondary)' }}>{match.fileName}</td>
-                <td style={{ color: 'var(--text-secondary)' }}>{match.lineNumber}</td>
-                <td className="cell-keyword">{match.keyword}</td>
-                <td className="cell-content">
+                <td className="cell-filename">{match.fileName}</td>
+                <td className="cell-line">{match.lineNumber.toLocaleString()}</td>
+                <td>
+                  <span className="keyword-badge primary">{match.keyword}</span>
+                </td>
+                <td>
                   {match.contextBefore.map((line, i) => (
-                    <div key={`b-${i}`} style={{ opacity: 0.5 }}>{line}</div>
+                    <span key={`b-${i}`} className="context-line">{line}</span>
                   ))}
-                  <div style={{ color: 'var(--accent)', fontWeight: 500 }}>{match.content}</div>
+                  <span className="match-line">{match.content}</span>
                   {match.contextAfter.map((line, i) => (
-                    <div key={`a-${i}`} style={{ opacity: 0.5 }}>{line}</div>
+                    <span key={`a-${i}`} className="context-line">{line}</span>
                   ))}
                 </td>
               </tr>
             ))}
+
             {filteredMatches.length === 0 && (
               <tr>
-                <td colSpan={4} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                <td colSpan={4} style={{ textAlign: 'center', padding: '40px', color: 'var(--on-surface-variant)' }}>
                   No matches found yet.
                 </td>
               </tr>
@@ -133,27 +148,44 @@ const ResultArea: React.FC = () => {
         </table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="pagination" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 16 }}>
-          <button 
-            className="secondary" 
-            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}
-            style={{ padding: '4px 12px' }}
-          >
-            Previous
-          </button>
-          <span style={{ fontSize: '0.875rem' }}>Page {currentPage} of {totalPages}</span>
-          <button 
-            className="secondary" 
-            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-            disabled={currentPage === totalPages}
-            style={{ padding: '4px 12px' }}
-          >
-            Next
-          </button>
-        </div>
-      )}
+      {/* Footer / Pagination */}
+      <div className="results-footer">
+        <p className="results-count">
+          Showing {paginatedMatches.length} of {filteredMatches.length} matches
+        </p>
+
+        {totalPages > 1 && (
+          <div className="pagination">
+            <button
+              className="page-btn"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_left</span>
+            </button>
+
+            <div className="page-numbers">
+              {visiblePages.map(p => (
+                <span
+                  key={p}
+                  className={`page-num ${p === currentPage ? 'active' : ''}`}
+                  onClick={() => setCurrentPage(p)}
+                >
+                  {p}
+                </span>
+              ))}
+            </div>
+
+            <button
+              className="page-btn"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
+            </button>
+          </div>
+        )}
+      </div>
     </section>
   );
 };
