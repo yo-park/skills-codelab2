@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LogAnalyzer - Forensic Lab</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ee7d77",
+                        "on-background": "#dee5ff",
+                        "secondary-fixed": "#d5e3fc",
+                        "outline": "#5b74b1",
+                        "surface": "#060e20",
+                        "tertiary-dim": "#58e7ab",
+                        "surface-bright": "#002867",
+                        "primary-dim": "#98b8ff",
+                        "secondary-dim": "#909fb5",
+                        "tertiary-container": "#69f6b8",
+                        "on-surface": "#dee5ff",
+                        "primary-fixed-dim": "#c3d4ff",
+                        "on-primary-container": "#bdd0ff",
+                        "error-container": "#7f2927",
+                        "secondary": "#909fb5",
+                        "surface-container-low": "#06122d",
+                        "primary": "#adc6ff",
+                        "surface-container-high": "#031d4b",
+                        "on-error-container": "#ff9993",
+                        "surface-dim": "#060e20",
+                        "background": "#060e20",
+                        "tertiary-fixed-dim": "#58e7ab",
+                        "primary-container": "#004395",
+                        "on-surface-variant": "#91aaeb",
+                        "inverse-on-surface": "#4d556b",
+                        "surface-container": "#05183c",
+                        "on-error": "#490106",
+                        "on-primary": "#003d88",
+                        "secondary-container": "#2e3c4f",
+                        "on-secondary-fixed": "#324053",
+                        "on-secondary-container": "#b2c0d8",
+                        "on-primary-fixed": "#003c86",
+                        "surface-container-highest": "#00225a",
+                        "outline-variant": "#2b4680",
+                        "surface-tint": "#adc6ff",
+                        "on-secondary-fixed-variant": "#4e5c71",
+                        "inverse-surface": "#faf8ff",
+                        "surface-variant": "#00225a",
+                        "on-tertiary-fixed": "#00452d",
+                        "error-dim": "#bb5551",
+                        "on-tertiary": "#006443",
+                        "on-secondary": "#122133",
+                        "primary-fixed": "#d8e2ff",
+                        "on-primary-fixed-variant": "#0057bd",
+                        "inverse-primary": "#005bc4",
+                        "on-tertiary-fixed-variant": "#006544",
+                        "tertiary": "#9bffce",
+                        "tertiary-fixed": "#69f6b8",
+                        "secondary-fixed-dim": "#c7d5ed",
+                        "surface-container-lowest": "#000000",
+                        "on-tertiary-container": "#005a3c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .log-grid { grid-template-columns: 240px 1fr; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #060e20; }
+        ::-webkit-scrollbar-thumb { background: #00225a; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #004395; }
+        input[type="range"] { accent-color: #adc6ff; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary-container selection:text-primary">
+<!-- Sidebar (Shared Component: SideNavBar) -->
+<aside class="fixed left-0 top-0 h-full w-60 bg-[#06122d] flex flex-col py-8 z-50 transition-all font-['Inter'] text-sm font-medium uppercase tracking-widest">
+<div class="px-6 mb-12">
+<h1 class="text-lg font-black text-[#dee5ff]">LogAnalyzer</h1>
+<p class="text-[10px] tracking-[0.2em] text-[#91aaeb] mt-1">Forensic Lab <span class="opacity-50">Terminal v2.4</span></p>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center px-6 py-4 bg-[#00225a] text-[#dee5ff] border-r-2 border-[#adc6ff] transition-all duration-300 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined mr-3">search</span>
+                Search Logs
+            </a>
+<a class="flex items-center px-6 py-4 text-[#91aaeb] hover:text-[#dee5ff] hover:bg-[#002867] transition-all duration-300 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined mr-3">settings</span>
+                Settings
+            </a>
+</nav>
+<div class="px-6 mt-auto">
+<div class="p-4 rounded-lg bg-surface-container-high/40 backdrop-blur-sm border border-outline-variant/10">
+<p class="text-[10px] text-on-surface-variant mb-2">ENGINE STATUS</p>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-tertiary shadow-[0_0_8px_#9bffce]"></div>
+<span class="text-[11px] text-tertiary">OPERATIONAL</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="ml-60 min-h-screen flex flex-col">
+<!-- Top Navigation (Shared Component: TopNavBar) -->
+<header class="sticky top-0 h-16 bg-[#060e20] flex justify-between items-center w-full px-8 z-40 font-['Inter'] antialiased tracking-tight">
+<div class="flex items-center gap-4">
+<h2 class="text-xl font-bold tracking-tighter text-[#dee5ff]">Log Scanner</h2>
+<div class="h-4 w-[1px] bg-outline-variant/30"></div>
+<span class="text-sm font-medium text-on-surface-variant lowercase italic">session_ forensic_id: 8849-X</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-primary to-primary-container text-on-primary font-semibold text-sm rounded-lg hover:brightness-110 active:opacity-80 transition-all">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                    Start Scan
+                </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container-highest text-on-surface-variant font-semibold text-sm rounded-lg hover:bg-[#002867] active:opacity-80 transition-all">
+<span class="material-symbols-outlined text-[20px]">stop</span>
+                    Stop Scan
+                </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container text-on-surface-variant font-semibold text-sm rounded-lg hover:bg-[#002867] active:opacity-80 transition-all">
+<span class="material-symbols-outlined text-[20px]">refresh</span>
+                    Reset Results
+                </button>
+</div>
+</header>
+<!-- Content Area -->
+<div class="p-8 space-y-8 flex-1">
+<!-- Config & Keywords Bento Grid -->
+<section class="grid grid-cols-12 gap-6">
+<!-- File & Search Options Panel -->
+<div class="col-span-12 lg:col-span-5 bg-surface-container-low rounded-xl p-6 flex flex-col gap-6">
+<div>
+<h3 class="text-[11px] font-bold tracking-widest text-on-surface-variant uppercase mb-4">Ingestion Cluster</h3>
+<label class="group relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-outline-variant/30 rounded-xl bg-surface transition-all hover:bg-surface-container-highest/30 cursor-pointer">
+<div class="flex flex-col items-center justify-center pt-5 pb-6">
+<span class="material-symbols-outlined text-primary mb-2 text-3xl">upload_file</span>
+<p class="text-sm text-on-surface-variant">Drop multiple large .log or .txt files</p>
+</div>
+<input class="hidden" multiple="" type="file"/>
+</label>
+<div class="mt-3 flex gap-2 overflow-x-auto pb-1">
+<span class="px-2 py-1 bg-surface-container-highest rounded text-[10px] text-on-surface font-mono border border-outline-variant/20 flex items-center gap-2">
+                                auth_prod_01.log <span class="material-symbols-outlined text-[12px] cursor-pointer">close</span>
+</span>
+<span class="px-2 py-1 bg-surface-container-highest rounded text-[10px] text-on-surface font-mono border border-outline-variant/20 flex items-center gap-2">
+                                kernel_dump_v2.log <span class="material-symbols-outlined text-[12px] cursor-pointer">close</span>
+</span>
+</div>
+</div>
+<div class="space-y-5">
+<div class="flex justify-between items-center">
+<label class="text-sm font-medium text-on-surface">Concurrent Scans</label>
+<span class="text-xs font-mono bg-primary-container/20 text-primary px-2 py-0.5 rounded">2 / 3</span>
+</div>
+<input class="w-full h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer" max="3" min="1" type="range" value="2"/>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-2">
+<label class="text-xs font-medium text-on-surface-variant">Max Matches</label>
+<input class="w-full bg-surface-container-high border-none rounded-lg text-sm text-on-surface focus:ring-2 focus:ring-primary transition-all p-2.5" type="number" value="1000"/>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-medium text-on-surface-variant">Pattern Mode</label>
+<select class="w-full bg-surface-container-high border-none rounded-lg text-sm text-on-surface focus:ring-2 focus:ring-primary transition-all p-2.5 appearance-none">
+<option>RegEx (PCRE)</option>
+<option>Literal String</option>
+<option>Wildcard</option>
+</select>
+</div>
+</div>
+<div class="flex items-center justify-between p-3 bg-surface-container-high rounded-lg">
+<span class="text-sm text-on-surface">Case-Sensitive Scan</span>
+<button class="relative inline-flex items-center h-5 rounded-full w-10 bg-primary/20">
+<span class="inline-block w-3 h-3 transform translate-x-6 rounded-full bg-primary transition-transform"></span>
+</button>
+</div>
+</div>
+</div>
+<!-- Keywords Section -->
+<div class="col-span-12 lg:col-span-7 bg-surface-container-low rounded-xl p-6 flex flex-col h-full">
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-[11px] font-bold tracking-widest text-on-surface-variant uppercase">Target Signature Set</h3>
+<div class="flex items-center gap-2">
+<label class="text-xs text-on-surface-variant">Context Lines</label>
+<input class="w-16 bg-surface-container-highest border-none rounded-lg text-xs text-primary font-mono focus:ring-1 focus:ring-primary p-1.5 text-center" type="number" value="3"/>
+</div>
+</div>
+<div class="flex-1 relative">
+<textarea class="w-full h-full min-h-[250px] bg-surface-container-lowest text-tertiary-dim font-mono text-sm p-4 rounded-xl border border-outline-variant/10 focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-outline/40" placeholder="CRITICAL ERROR\nNullPointerException\nHTTP 50[0-9]\nTimeout after [0-9]+ms"></textarea>
+<div class="absolute bottom-4 right-4 pointer-events-none opacity-20">
+<span class="material-symbols-outlined text-4xl">terminal</span>
+</div>
+</div>
+<p class="text-[10px] text-on-surface-variant mt-3 italic">Enter one signature per line. Regex is supported in active mode.</p>
+</div>
+</section>
+<!-- Real-time Progress -->
+<section class="space-y-4">
+<h3 class="text-[11px] font-bold tracking-widest text-on-surface-variant uppercase">Active Pipelines</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+<!-- Progress Card 1 -->
+<div class="bg-surface-container-low p-4 rounded-xl border-l-4 border-primary">
+<div class="flex justify-between items-start mb-3">
+<div class="overflow-hidden">
+<p class="text-xs font-mono text-on-surface truncate">auth_prod_01.log</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-tighter">Phase: Byte Ingestion</p>
+</div>
+<span class="text-xs font-mono text-primary">78%</span>
+</div>
+<div class="w-full h-1 bg-surface-container-highest rounded-full mb-3 overflow-hidden">
+<div class="h-full bg-primary" style="width: 78%"></div>
+</div>
+<div class="grid grid-cols-3 gap-2">
+<div class="text-center">
+<p class="text-[9px] text-on-surface-variant uppercase">Read</p>
+<p class="text-xs font-mono text-on-surface">12.4 MB</p>
+</div>
+<div class="text-center">
+<p class="text-[9px] text-on-surface-variant uppercase">Lines</p>
+<p class="text-xs font-mono text-on-surface">45.2k</p>
+</div>
+<div class="text-center">
+<p class="text-[9px] text-on-surface-variant uppercase">Matches</p>
+<p class="text-xs font-mono text-tertiary">142</p>
+</div>
+</div>
+</div>
+<!-- Progress Card 2 -->
+<div class="bg-surface-container-low p-4 rounded-xl border-l-4 border-tertiary">
+<div class="flex justify-between items-start mb-3">
+<div class="overflow-hidden">
+<p class="text-xs font-mono text-on-surface truncate">kernel_dump_v2.log</p>
+<p class="text-[10px] text-tertiary uppercase tracking-tighter">Status: Completed</p>
+</div>
+<span class="material-symbols-outlined text-tertiary text-sm">check_circle</span>
+</div>
+<div class="w-full h-1 bg-tertiary rounded-full mb-3 shadow-[0_0_8px_#9bffce33]"></div>
+<div class="grid grid-cols-3 gap-2">
+<div class="text-center">
+<p class="text-[9px] text-on-surface-variant uppercase">Read</p>
+<p class="text-xs font-mono text-on-surface">248.1 MB</p>
+</div>
+<div class="text-center">
+<p class="text-[9px] text-on-surface-variant uppercase">Lines</p>
+<p class="text-xs font-mono text-on-surface">1.2M</p>
+</div>
+<div class="text-center">
+<p class="text-[9px] text-on-surface-variant uppercase">Matches</p>
+<p class="text-xs font-mono text-tertiary">12</p>
+</div>
+</div>
+</div>
+<!-- Progress Card Placeholder -->
+<div class="bg-surface-container-low/30 border-2 border-dashed border-outline-variant/10 p-4 rounded-xl flex items-center justify-center">
+<p class="text-[10px] text-outline uppercase tracking-widest">Waiting for input...</p>
+</div>
+</div>
+</section>
+<!-- Results Section -->
+<section class="bg-surface-container-low rounded-2xl overflow-hidden flex flex-col">
+<div class="p-4 bg-surface-container flex flex-wrap items-center justify-between gap-4">
+<div class="flex items-center gap-4 flex-1 max-w-2xl">
+<div class="relative flex-1">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">filter_alt</span>
+<input class="w-full bg-surface-container-high border-none rounded-lg py-2 pl-10 pr-4 text-xs text-on-surface focus:ring-1 focus:ring-primary placeholder:text-on-surface-variant/40" placeholder="Filter by pattern, file, or content..." type="text"/>
+</div>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 bg-secondary-container text-on-secondary-container hover:bg-secondary-container/80 transition-all rounded-lg text-xs font-bold uppercase tracking-wider">
+<span class="material-symbols-outlined text-[18px]">download</span>
+                        Download CSV
+                    </button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container text-[10px] uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/10">
+<tr>
+<th class="px-6 py-4 font-bold">File Name</th>
+<th class="px-6 py-4 font-bold w-24">Line No</th>
+<th class="px-6 py-4 font-bold w-40">Pattern Match</th>
+<th class="px-6 py-4 font-bold">Content Fragment</th>
+</tr>
+</thead>
+<tbody class="text-sm font-mono divide-y divide-outline-variant/5">
+<tr class="hover:bg-surface-bright transition-colors group">
+<td class="px-6 py-4 text-on-surface-variant text-xs">auth_prod_01.log</td>
+<td class="px-6 py-4 text-primary">1,402</td>
+<td class="px-6 py-4"><span class="bg-error-container/40 text-error px-2 py-0.5 rounded text-[10px]">CRITICAL ERROR</span></td>
+<td class="px-6 py-4 text-on-surface truncate max-w-md">2023-10-27 14:02:11 [FATAL] Database connection pool exhausted - aborting operation</td>
+</tr>
+<tr class="bg-surface-container-lowest/20 hover:bg-surface-bright transition-colors group">
+<td class="px-6 py-4 text-on-surface-variant text-xs">auth_prod_01.log</td>
+<td class="px-6 py-4 text-primary">1,405</td>
+<td class="px-6 py-4"><span class="bg-error-container/40 text-error px-2 py-0.5 rounded text-[10px]">CRITICAL ERROR</span></td>
+<td class="px-6 py-4 text-on-surface truncate max-w-md">2023-10-27 14:02:12 [FATAL] Thread leak detected in core worker cluster (id: 99x)</td>
+</tr>
+<tr class="hover:bg-surface-bright transition-colors group">
+<td class="px-6 py-4 text-on-surface-variant text-xs">kernel_dump_v2.log</td>
+<td class="px-6 py-4 text-primary">894,221</td>
+<td class="px-6 py-4"><span class="bg-primary-container/40 text-primary px-2 py-0.5 rounded text-[10px]">TIMEOUT</span></td>
+<td class="px-6 py-4 text-on-surface truncate max-w-md">CPU stuck for 22ms in kernel space [irq: 0x0112a] - possible resource contention</td>
+</tr>
+<tr class="bg-surface-container-lowest/20 hover:bg-surface-bright transition-colors group">
+<td class="px-6 py-4 text-on-surface-variant text-xs">auth_prod_01.log</td>
+<td class="px-6 py-4 text-primary">1,510</td>
+<td class="px-6 py-4"><span class="bg-tertiary-container/20 text-tertiary px-2 py-0.5 rounded text-[10px]">HTTP 500</span></td>
+<td class="px-6 py-4 text-on-surface truncate max-w-md">GET /api/v1/user/settings HTTP/1.1 500 Internal Server Error - stack trace following</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 border-t border-outline-variant/10 bg-surface flex items-center justify-between">
+<p class="text-[10px] text-on-surface-variant uppercase">Showing 154 of 1,209 matches</p>
+<div class="flex gap-2">
+<button class="p-1.5 rounded bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[18px]">chevron_left</span>
+</button>
+<div class="flex items-center gap-1 text-[10px] font-mono text-on-surface">
+<span class="w-6 h-6 flex items-center justify-center bg-primary text-on-primary rounded">1</span>
+<span class="w-6 h-6 flex items-center justify-center hover:bg-surface-container rounded cursor-pointer">2</span>
+<span class="w-6 h-6 flex items-center justify-center hover:bg-surface-container rounded cursor-pointer">3</span>
+</div>
+<button class="p-1.5 rounded bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+</div>
+<!-- System Footer -->
+<footer class="mt-auto px-8 py-4 bg-surface-container-lowest border-t border-outline-variant/5 text-[10px] text-on-surface-variant flex justify-between items-center">
+<div class="flex items-center gap-4">
+<span>CPU: 12%</span>
+<span>RAM: 2.1GB / 16GB</span>
+<span>SCRIPTS: LOADED</span>
+</div>
+<div class="flex items-center gap-1 opacity-60">
+<span class="material-symbols-outlined text-[12px]">security</span>
+                ENCRYPTED END-TO-END
+            </div>
+</footer>
+</main>
+<!-- Visual Enhancements: Background Gradients -->
+<div class="fixed top-0 right-0 w-[500px] h-[500px] bg-primary/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none z-0"></div>
+<div class="fixed bottom-0 left-0 w-[300px] h-[300px] bg-tertiary/5 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none z-0"></div>
+</body></html>
