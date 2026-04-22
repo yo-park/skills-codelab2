@@ -96,10 +96,10 @@ impl ScanEngine {
                 Ok(n) => {
                     bytes_read += n as u64;
                     lines_scanned += 1;
-                    let line_content = line.trim_end().to_string();
+                    let line_content = line.trim_end();
 
                     if let Some(ref mut m) = pending_match {
-                        m.context_after.push(line_content.clone());
+                        m.context_after.push(line_content.to_string());
                         lines_after_needed -= 1;
                         if lines_after_needed == 0 {
                             let _ = tx.send(ScanEvent::Match(pending_match.take().unwrap()));
@@ -116,7 +116,7 @@ impl ScanEngine {
                                         if before_buffer.len() >= self.config.context_lines {
                                             before_buffer.pop_front();
                                         }
-                                        before_buffer.push_back(line_content);
+                                        before_buffer.push_back(line_content.to_string());
                                     }
                                     continue;
                                 }
@@ -130,7 +130,7 @@ impl ScanEngine {
                                         if before_buffer.len() >= self.config.context_lines {
                                             before_buffer.pop_front();
                                         }
-                                        before_buffer.push_back(line_content);
+                                        before_buffer.push_back(line_content.to_string());
                                     }
                                     continue;
                                 }
@@ -141,7 +141,7 @@ impl ScanEngine {
                     let mut found_kw = None;
                     if matches!(self.config.pattern_mode, PatternMode::Regex) {
                         for (i, re) in self.regexes.iter().enumerate() {
-                            if re.is_match(&line_content) {
+                            if re.is_match(line_content) {
                                 found_kw = Some(self.keywords[i].clone());
                                 break;
                             }
@@ -151,14 +151,14 @@ impl ScanEngine {
                         if is_case_insensitive {
                             let search_content = line_content.to_lowercase();
                             for (i, search_kw) in self.search_keywords.iter().enumerate() {
-                                if search_content.contains(search_kw) {
+                                if search_content.contains(search_kw.as_str()) {
                                     found_kw = Some(self.keywords[i].clone());
                                     break;
                                 }
                             }
                         } else {
                             for (i, search_kw) in self.search_keywords.iter().enumerate() {
-                                if line_content.contains(search_kw) {
+                                if line_content.contains(search_kw.as_str()) {
                                     found_kw = Some(self.keywords[i].clone());
                                     break;
                                 }
@@ -177,7 +177,7 @@ impl ScanEngine {
                             file_name: file_name.clone(),
                             line_number: lines_scanned,
                             keyword: kw,
-                            content: line_content.clone(),
+                            content: line_content.to_string(),
                             context_before: before_buffer.iter().cloned().collect(),
                             context_after: Vec::new(),
                         };
@@ -198,7 +198,7 @@ impl ScanEngine {
                         if before_buffer.len() >= self.config.context_lines {
                             before_buffer.pop_front();
                         }
-                        before_buffer.push_back(line_content);
+                        before_buffer.push_back(line_content.to_string());
                     }
 
                     if lines_scanned % 1000 == 0 {
