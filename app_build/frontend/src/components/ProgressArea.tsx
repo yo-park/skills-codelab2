@@ -5,7 +5,7 @@ import { useScanStore } from '../store/scanStore';
 const ProgressArea: React.FC = () => {
   const { fileProgress } = useScanStore();
   
-  const progressItems = Array.from(fileProgress.entries());
+  const progressItems = Object.entries(fileProgress);
 
   if (progressItems.length === 0) return null;
 
