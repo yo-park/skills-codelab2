@@ -47,10 +47,21 @@ impl ScanEngine {
                 }
             }
         } else {
-            for kw in &keywords {
-                if is_case_insensitive {
-                    search_keywords.push(kw.to_lowercase());
-                } else {
+            // For literal matching, if case insensitive, build regexes instead
+            // to avoid `line.to_lowercase()` in the hot path.
+            if is_case_insensitive {
+                for kw in &keywords {
+                    // escape literal strings to use them as regex
+                    let escaped_kw = regex::escape(kw);
+                    let mut builder = RegexBuilder::new(&escaped_kw);
+                    builder.case_insensitive(true);
+                    match builder.build() {
+                        Ok(re) => regexes.push(re),
+                        Err(e) => return Err(format!("Invalid regex '{}': {}", kw, e)),
+                    }
+                }
+            } else {
+                for kw in &keywords {
                     search_keywords.push(kw.clone());
                 }
             }
@@ -89,6 +100,9 @@ impl ScanEngine {
         let mut pending_match: Option<MatchEntry> = None;
         let mut lines_after_needed = 0;
 
+        let is_case_insensitive = self.config.case_sensitive == "false";
+        let use_regex = matches!(self.config.pattern_mode, PatternMode::Regex) || is_case_insensitive;
+
         loop {
             line.clear();
             match reader.read_line(&mut line).await {
@@ -96,10 +110,12 @@ impl ScanEngine {
                 Ok(n) => {
                     bytes_read += n as u64;
                     lines_scanned += 1;
-                    let line_content = line.trim_end().to_string();
+
+                    // Don't create a new String for line_content if not needed
+                    let line_content_view = line.trim_end();
 
                     if let Some(ref mut m) = pending_match {
-                        m.context_after.push(line_content.clone());
+                        m.context_after.push(line_content_view.to_string());
                         lines_after_needed -= 1;
                         if lines_after_needed == 0 {
                             let _ = tx.send(ScanEvent::Match(pending_match.take().unwrap()));
@@ -108,15 +124,19 @@ impl ScanEngine {
 
                     // Time Range Filtering
                     if self.config.start_time.is_some() || self.config.end_time.is_some() {
-                        if let Some(caps) = self.ts_regex.captures(&line_content) {
+                        if let Some(caps) = self.ts_regex.captures(line_content_view) {
                             let ts = caps.get(1).map(|m| m.as_str()).unwrap_or("");
                             if let Some(ref start) = self.config.start_time {
                                 if ts < start.as_str() {
                                     if self.config.context_lines > 0 {
-                                        if before_buffer.len() >= self.config.context_lines {
-                                            before_buffer.pop_front();
-                                        }
-                                        before_buffer.push_back(line_content);
+                                        let mut buffer_str = if before_buffer.len() >= self.config.context_lines {
+                                            before_buffer.pop_front().unwrap()
+                                        } else {
+                                            String::with_capacity(line_content_view.len())
+                                        };
+                                        buffer_str.clear();
+                                        buffer_str.push_str(line_content_view);
+                                        before_buffer.push_back(buffer_str);
                                     }
                                     continue;
                                 }
@@ -127,10 +147,14 @@ impl ScanEngine {
                                     // but we don't know if they are sorted by time across all files.
                                     // For safety, we just skip.
                                     if self.config.context_lines > 0 {
-                                        if before_buffer.len() >= self.config.context_lines {
-                                            before_buffer.pop_front();
-                                        }
-                                        before_buffer.push_back(line_content);
+                                        let mut buffer_str = if before_buffer.len() >= self.config.context_lines {
+                                            before_buffer.pop_front().unwrap()
+                                        } else {
+                                            String::with_capacity(line_content_view.len())
+                                        };
+                                        buffer_str.clear();
+                                        buffer_str.push_str(line_content_view);
+                                        before_buffer.push_back(buffer_str);
                                     }
                                     continue;
                                 }
@@ -139,29 +163,19 @@ impl ScanEngine {
                     }
 
                     let mut found_kw = None;
-                    if matches!(self.config.pattern_mode, PatternMode::Regex) {
+                    if use_regex {
                         for (i, re) in self.regexes.iter().enumerate() {
-                            if re.is_match(&line_content) {
+                            if re.is_match(line_content_view) {
                                 found_kw = Some(self.keywords[i].clone());
                                 break;
                             }
                         }
                     } else {
-                        let is_case_insensitive = self.config.case_sensitive == "false";
-                        if is_case_insensitive {
-                            let search_content = line_content.to_lowercase();
-                            for (i, search_kw) in self.search_keywords.iter().enumerate() {
-                                if search_content.contains(search_kw) {
-                                    found_kw = Some(self.keywords[i].clone());
-                                    break;
-                                }
-                            }
-                        } else {
-                            for (i, search_kw) in self.search_keywords.iter().enumerate() {
-                                if line_content.contains(search_kw) {
-                                    found_kw = Some(self.keywords[i].clone());
-                                    break;
-                                }
+                        // Case sensitive, literal
+                        for (i, search_kw) in self.search_keywords.iter().enumerate() {
+                            if line_content_view.contains(search_kw) {
+                                found_kw = Some(self.keywords[i].clone());
+                                break;
                             }
                         }
                     }
@@ -177,7 +191,7 @@ impl ScanEngine {
                             file_name: file_name.clone(),
                             line_number: lines_scanned,
                             keyword: kw,
-                            content: line_content.clone(),
+                            content: line_content_view.to_string(),
                             context_before: before_buffer.iter().cloned().collect(),
                             context_after: Vec::new(),
                         };
@@ -195,10 +209,15 @@ impl ScanEngine {
                     }
 
                     if self.config.context_lines > 0 {
-                        if before_buffer.len() >= self.config.context_lines {
-                            before_buffer.pop_front();
-                        }
-                        before_buffer.push_back(line_content);
+                        // Avoid allocating new strings for context lines if we can reuse popped ones
+                        let mut buffer_str = if before_buffer.len() >= self.config.context_lines {
+                            before_buffer.pop_front().unwrap()
+                        } else {
+                            String::with_capacity(line_content_view.len())
+                        };
+                        buffer_str.clear();
+                        buffer_str.push_str(line_content_view);
+                        before_buffer.push_back(buffer_str);
                     }
 
                     if lines_scanned % 1000 == 0 {

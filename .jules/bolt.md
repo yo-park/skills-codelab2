@@ -1,3 +1,7 @@
 ## 2024-04-20 - Removed String Allocations From Scanner Hot Path
 **Learning:** In the inner loop of `ScanEngine::process_file_stream`, literal keyword searches were allocating string clones and performing `to_lowercase` on both the input string AND every single search keyword for every single line. This O(N * M) allocation overhead on the hot path caused substantial and unnecessary memory pressure.
 **Action:** Always verify if keyword pre-computation or case conversions can be hoisted out of a tight IO loop, especially in a fast language like Rust, and avoid mapping or cloning inside hot read loops unless strictly required by mutation semantics.
+
+## 2024-04-21 - Avoiding Implicit Allocations in I/O Ring Buffers
+**Learning:** Maintaining logging context buffers via `VecDeque<String>` can implicitly create thousands of heap allocations when parsing log files (e.g. `String::to_string()` for `line_content` on every read). Reusing popped `String` values by utilizing `clear()` and `push_str()` provides significant performance gains by re-using their existing capacity, circumventing reallocation on the hot path.
+**Action:** When a buffer needs to rotate items, do not blindly create new instances; reuse objects that drop out from the buffer's tail if they hold heap-allocated capacity. Convert literal matching with `case-insensitive` flag to regex-based searching beforehand rather than lowercasing raw strings on every line iteration.
