@@ -15,7 +15,7 @@ interface ScanState extends ScanConfig {
   files: File[];
   scanId: string | null;
   scanStatus: ScanStatus;
-  fileProgress: Map<number, FileProgress>;
+  fileProgress: Record<number, FileProgress>;
   matches: MatchEntry[];
   error: string | null;
 
@@ -49,7 +49,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
   scanId: null,
   scanStatus: 'idle',
-  fileProgress: new Map(),
+  fileProgress: {},
   matches: [],
   error: null,
 
@@ -66,7 +66,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
   resetScan: () => set({
     scanId: null,
     scanStatus: 'idle',
-    fileProgress: new Map(),
+    fileProgress: {},
     matches: [],
     error: null
   }),
@@ -83,7 +83,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
       return;
     }
 
-    set({ scanStatus: 'running', matches: [], fileProgress: new Map(), error: null });
+    set({ scanStatus: 'running', matches: [], fileProgress: {}, error: null });
 
     const formData = new FormData();
     formData.append('keywords', keywords);
@@ -114,35 +114,40 @@ export const useScanStore = create<ScanState>((set, get) => ({
       eventSource.addEventListener('file_start', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerFileStart = payload.data;
-        set(state => {
-          const newMap = new Map(state.fileProgress);
-          newMap.set(data.file_index, {
-            fileName: data.file_name,
-            totalBytes: data.total_bytes,
-            bytesRead: 0,
-            linesScanned: 0,
-            matchesFound: 0,
-            status: 'scanning'
-          });
-          return { fileProgress: newMap };
-        });
+        set(state => ({
+          fileProgress: {
+            ...state.fileProgress,
+            [data.file_index]: {
+              fileName: data.file_name,
+              totalBytes: data.total_bytes,
+              bytesRead: 0,
+              linesScanned: 0,
+              matchesFound: 0,
+              status: 'scanning'
+            }
+          }
+        }));
       });
 
       eventSource.addEventListener('progress', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerProgress = payload.data;
         set(state => {
-          const newMap = new Map(state.fileProgress);
-          const current = newMap.get(data.file_index);
+          const current = state.fileProgress[data.file_index];
           if (current) {
-            newMap.set(data.file_index, {
-              ...current,
-              bytesRead: data.bytes_read,
-              linesScanned: data.lines_scanned,
-              matchesFound: data.matches_found
-            });
+            return {
+              fileProgress: {
+                ...state.fileProgress,
+                [data.file_index]: {
+                  ...current,
+                  bytesRead: data.bytes_read,
+                  linesScanned: data.lines_scanned,
+                  matchesFound: data.matches_found
+                }
+              }
+            };
           }
-          return { fileProgress: newMap };
+          return state;
         });
       });
 
@@ -166,12 +171,16 @@ export const useScanStore = create<ScanState>((set, get) => ({
         const payload = JSON.parse(e.data);
         const data: ServerFileDone = payload.data;
         set(state => {
-          const newMap = new Map(state.fileProgress);
-          const current = newMap.get(data.file_index);
+          const current = state.fileProgress[data.file_index];
           if (current) {
-            newMap.set(data.file_index, { ...current, status: 'done' });
+            return {
+              fileProgress: {
+                ...state.fileProgress,
+                [data.file_index]: { ...current, status: 'done' }
+              }
+            };
           }
-          return { fileProgress: newMap };
+          return state;
         });
       });
 
