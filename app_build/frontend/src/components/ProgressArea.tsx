@@ -5,7 +5,7 @@ import { useScanStore } from '../store/scanStore';
 const ProgressArea: React.FC = () => {
   const { fileProgress } = useScanStore();
   
-  const progressItems = Array.from(fileProgress.entries());
+  const progressItems = Object.entries(fileProgress);
 
   if (progressItems.length === 0) return null;
 
@@ -17,13 +17,13 @@ const ProgressArea: React.FC = () => {
       </div>
 
       <div className="progress-list">
-        {progressItems.map(([index, progress]) => {
+        {progressItems.map(([indexStr, progress]) => {
           const percent = progress.totalBytes > 0 
             ? Math.round((progress.bytesRead / progress.totalBytes) * 100) 
             : 0;
 
           return (
-            <div key={index} className="progress-item">
+            <div key={indexStr} className="progress-item">
               <div className="progress-meta">
                 <span style={{ fontWeight: 600 }}>{progress.fileName}</span>
                 <span>{percent}% • {progress.linesScanned.toLocaleString()} lines • {progress.matchesFound.toLocaleString()} matches</span>
