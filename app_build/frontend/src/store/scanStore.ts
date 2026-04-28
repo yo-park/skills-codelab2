@@ -15,7 +15,7 @@ interface ScanState extends ScanConfig {
   files: File[];
   scanId: string | null;
   scanStatus: ScanStatus;
-  fileProgress: Map<number, FileProgress>;
+  fileProgress: Record<number, FileProgress>;
   matches: MatchEntry[];
   error: string | null;
 
@@ -49,7 +49,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
   scanId: null,
   scanStatus: 'idle',
-  fileProgress: new Map(),
+  fileProgress: {},
   matches: [],
   error: null,
 
@@ -66,7 +66,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
   resetScan: () => set({
     scanId: null,
     scanStatus: 'idle',
-    fileProgress: new Map(),
+    fileProgress: {},
     matches: [],
     error: null
   }),
@@ -83,7 +83,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
       return;
     }
 
-    set({ scanStatus: 'running', matches: [], fileProgress: new Map(), error: null });
+    set({ scanStatus: 'running', matches: [], fileProgress: {}, error: null });
 
     const formData = new FormData();
     formData.append('keywords', keywords);
@@ -111,39 +111,59 @@ export const useScanStore = create<ScanState>((set, get) => ({
       // Start SSE listening
       const eventSource = new EventSource(`/api/events/${scan_id}`);
 
+      // ⚡ Bolt Optimization: Buffer high-frequency SSE events (progress, matches)
+      // and flush them every 100ms. This drastically reduces React re-renders and
+      // state churn compared to updating the Zustand store on every single event.
+      let bufferedMatches: MatchEntry[] = [];
+      let bufferedProgress: Record<number, FileProgress> = {};
+      let flushTimeout: number | null = null;
+
+      const flush = () => {
+        if (bufferedMatches.length > 0 || Object.keys(bufferedProgress).length > 0) {
+          set(state => ({
+            matches: bufferedMatches.length > 0 ? [...state.matches, ...bufferedMatches] : state.matches,
+            fileProgress: Object.keys(bufferedProgress).length > 0 ? { ...state.fileProgress, ...bufferedProgress } : state.fileProgress
+          }));
+          bufferedMatches = [];
+          bufferedProgress = {};
+        }
+        flushTimeout = null;
+      };
+
+      const scheduleFlush = () => {
+        if (!flushTimeout) {
+          flushTimeout = window.setTimeout(flush, 100);
+        }
+      };
+
       eventSource.addEventListener('file_start', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerFileStart = payload.data;
-        set(state => {
-          const newMap = new Map(state.fileProgress);
-          newMap.set(data.file_index, {
-            fileName: data.file_name,
-            totalBytes: data.total_bytes,
-            bytesRead: 0,
-            linesScanned: 0,
-            matchesFound: 0,
-            status: 'scanning'
-          });
-          return { fileProgress: newMap };
-        });
+        bufferedProgress[data.file_index] = {
+          fileName: data.file_name,
+          totalBytes: data.total_bytes,
+          bytesRead: 0,
+          linesScanned: 0,
+          matchesFound: 0,
+          status: 'scanning'
+        };
+        scheduleFlush();
       });
 
       eventSource.addEventListener('progress', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerProgress = payload.data;
-        set(state => {
-          const newMap = new Map(state.fileProgress);
-          const current = newMap.get(data.file_index);
-          if (current) {
-            newMap.set(data.file_index, {
-              ...current,
-              bytesRead: data.bytes_read,
-              linesScanned: data.lines_scanned,
-              matchesFound: data.matches_found
-            });
-          }
-          return { fileProgress: newMap };
-        });
+
+        const current = bufferedProgress[data.file_index] || get().fileProgress[data.file_index];
+        if (current) {
+          bufferedProgress[data.file_index] = {
+            ...current,
+            bytesRead: data.bytes_read,
+            linesScanned: data.lines_scanned,
+            matchesFound: data.matches_found
+          };
+          scheduleFlush();
+        }
       });
 
       eventSource.addEventListener('match', (e: any) => {
@@ -159,28 +179,36 @@ export const useScanStore = create<ScanState>((set, get) => ({
           contextBefore: data.context_before || [],
           contextAfter: data.context_after || [],
         };
-        set(state => ({ matches: [...state.matches, match] }));
+        bufferedMatches.push(match);
+        scheduleFlush();
       });
 
       eventSource.addEventListener('file_done', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerFileDone = payload.data;
-        set(state => {
-          const newMap = new Map(state.fileProgress);
-          const current = newMap.get(data.file_index);
-          if (current) {
-            newMap.set(data.file_index, { ...current, status: 'done' });
-          }
-          return { fileProgress: newMap };
-        });
+        const current = bufferedProgress[data.file_index] || get().fileProgress[data.file_index];
+        if (current) {
+          bufferedProgress[data.file_index] = { ...current, status: 'done' };
+          scheduleFlush();
+        }
       });
 
       eventSource.addEventListener('scan_done', () => {
+        if (flushTimeout) {
+          window.clearTimeout(flushTimeout);
+          flushTimeout = null;
+        }
+        flush();
         set({ scanStatus: 'done' });
         eventSource.close();
       });
 
       eventSource.onerror = () => {
+        if (flushTimeout) {
+          window.clearTimeout(flushTimeout);
+          flushTimeout = null;
+        }
+        flush();
         set({ scanStatus: 'error', error: "Stream connection error" });
         eventSource.close();
       };
