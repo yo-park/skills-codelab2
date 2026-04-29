@@ -15,7 +15,7 @@ interface ScanState extends ScanConfig {
   files: File[];
   scanId: string | null;
   scanStatus: ScanStatus;
-  fileProgress: Map<number, FileProgress>;
+  fileProgress: Record<number, FileProgress>;
   matches: MatchEntry[];
   error: string | null;
 
@@ -49,7 +49,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
   scanId: null,
   scanStatus: 'idle',
-  fileProgress: new Map(),
+  fileProgress: {},
   matches: [],
   error: null,
 
@@ -63,13 +63,17 @@ export const useScanStore = create<ScanState>((set, get) => ({
   setStartTime: (startTime) => set({ startTime }),
   setEndTime: (endTime) => set({ endTime }),
 
-  resetScan: () => set({
-    scanId: null,
-    scanStatus: 'idle',
-    fileProgress: new Map(),
-    matches: [],
-    error: null
-  }),
+  resetScan: () => {
+    // We cannot clear startScan's interval here easily without storing it in state,
+    // but we can ensure startScan clears its own interval if status changes.
+    set({
+      scanId: null,
+      scanStatus: 'idle',
+      fileProgress: {},
+      matches: [],
+      error: null
+    });
+  },
 
   startScan: async () => {
     const { files, keywords, patternMode, caseSensitive, contextLines, concurrency, maxMatchesPerFile, startTime, endTime } = get();
@@ -83,7 +87,61 @@ export const useScanStore = create<ScanState>((set, get) => ({
       return;
     }
 
-    set({ scanStatus: 'running', matches: [], fileProgress: new Map(), error: null });
+    set({ scanStatus: 'running', matches: [], fileProgress: {}, error: null });
+
+    let progressBuffer: Record<number, FileProgress> = {};
+    let matchesBuffer: MatchEntry[] = [];
+    let isFlushing = false;
+
+    const flushBuffer = () => {
+      if (isFlushing) return;
+
+      const currentStatus = get().scanStatus;
+      if (currentStatus !== 'running') {
+        clearInterval(throttleTimer);
+        return;
+      }
+
+      const hasProgress = Object.keys(progressBuffer).length > 0;
+      const hasMatches = matchesBuffer.length > 0;
+
+      if (!hasProgress && !hasMatches) return;
+
+      isFlushing = true;
+      set((state) => {
+        const nextState: Partial<ScanState> = {};
+
+        if (hasProgress) {
+          // Merge with current state so we don't overwrite synchronous updates like 'done'
+          const mergedProgress = { ...state.fileProgress };
+          for (const key of Object.keys(progressBuffer)) {
+            const numKey = Number(key);
+            if (mergedProgress[numKey]) {
+                // If it is 'done', preserve 'done'
+                mergedProgress[numKey] = {
+                    ...mergedProgress[numKey],
+                    ...progressBuffer[numKey],
+                    status: mergedProgress[numKey].status === 'done' ? 'done' : progressBuffer[numKey].status
+                };
+            } else {
+                 mergedProgress[numKey] = progressBuffer[numKey];
+            }
+          }
+          nextState.fileProgress = mergedProgress;
+          progressBuffer = {};
+        }
+
+        if (hasMatches) {
+          nextState.matches = [...state.matches, ...matchesBuffer];
+          matchesBuffer = [];
+        }
+
+        return nextState;
+      });
+      isFlushing = false;
+    };
+
+    let throttleTimer = setInterval(flushBuffer, 100);
 
     const formData = new FormData();
     formData.append('keywords', keywords);
@@ -114,36 +172,36 @@ export const useScanStore = create<ScanState>((set, get) => ({
       eventSource.addEventListener('file_start', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerFileStart = payload.data;
-        set(state => {
-          const newMap = new Map(state.fileProgress);
-          newMap.set(data.file_index, {
-            fileName: data.file_name,
-            totalBytes: data.total_bytes,
-            bytesRead: 0,
-            linesScanned: 0,
-            matchesFound: 0,
-            status: 'scanning'
-          });
-          return { fileProgress: newMap };
-        });
+        set(state => ({
+          fileProgress: {
+            ...state.fileProgress,
+            [data.file_index]: {
+              fileName: data.file_name,
+              totalBytes: data.total_bytes,
+              bytesRead: 0,
+              linesScanned: 0,
+              matchesFound: 0,
+              status: 'scanning'
+            }
+          }
+        }));
       });
 
       eventSource.addEventListener('progress', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerProgress = payload.data;
-        set(state => {
-          const newMap = new Map(state.fileProgress);
-          const current = newMap.get(data.file_index);
-          if (current) {
-            newMap.set(data.file_index, {
-              ...current,
-              bytesRead: data.bytes_read,
-              linesScanned: data.lines_scanned,
-              matchesFound: data.matches_found
-            });
-          }
-          return { fileProgress: newMap };
-        });
+
+        const currentState = get().fileProgress;
+        const current = progressBuffer[data.file_index] || currentState[data.file_index];
+
+        if (current) {
+          progressBuffer[data.file_index] = {
+            ...current,
+            bytesRead: data.bytes_read,
+            linesScanned: data.lines_scanned,
+            matchesFound: data.matches_found
+          };
+        }
       });
 
       eventSource.addEventListener('match', (e: any) => {
@@ -159,28 +217,40 @@ export const useScanStore = create<ScanState>((set, get) => ({
           contextBefore: data.context_before || [],
           contextAfter: data.context_after || [],
         };
-        set(state => ({ matches: [...state.matches, match] }));
+        matchesBuffer.push(match);
       });
 
       eventSource.addEventListener('file_done', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerFileDone = payload.data;
+        // Also update buffer if it exists so next flush doesn't overwrite
+        if (progressBuffer[data.file_index]) {
+            progressBuffer[data.file_index].status = 'done';
+        }
         set(state => {
-          const newMap = new Map(state.fileProgress);
-          const current = newMap.get(data.file_index);
+          const current = state.fileProgress[data.file_index];
           if (current) {
-            newMap.set(data.file_index, { ...current, status: 'done' });
+            return {
+              fileProgress: {
+                ...state.fileProgress,
+                [data.file_index]: { ...current, status: 'done' }
+              }
+            };
           }
-          return { fileProgress: newMap };
+          return state;
         });
       });
 
       eventSource.addEventListener('scan_done', () => {
+        clearInterval(throttleTimer);
+        flushBuffer();
         set({ scanStatus: 'done' });
         eventSource.close();
       });
 
       eventSource.onerror = () => {
+        clearInterval(throttleTimer);
+        flushBuffer();
         set({ scanStatus: 'error', error: "Stream connection error" });
         eventSource.close();
       };
