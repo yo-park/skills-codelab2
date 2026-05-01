@@ -15,7 +15,7 @@ interface ScanState extends ScanConfig {
   files: File[];
   scanId: string | null;
   scanStatus: ScanStatus;
-  fileProgress: Map<number, FileProgress>;
+  fileProgress: Record<number, FileProgress>;
   matches: MatchEntry[];
   error: string | null;
 
@@ -49,7 +49,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
   scanId: null,
   scanStatus: 'idle',
-  fileProgress: new Map(),
+  fileProgress: {},
   matches: [],
   error: null,
 
@@ -66,7 +66,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
   resetScan: () => set({
     scanId: null,
     scanStatus: 'idle',
-    fileProgress: new Map(),
+    fileProgress: {},
     matches: [],
     error: null
   }),
@@ -83,7 +83,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
       return;
     }
 
-    set({ scanStatus: 'running', matches: [], fileProgress: new Map(), error: null });
+    set({ scanStatus: 'running', matches: [], fileProgress: {}, error: null });
 
     const formData = new FormData();
     formData.append('keywords', keywords);
@@ -111,39 +111,84 @@ export const useScanStore = create<ScanState>((set, get) => ({
       // Start SSE listening
       const eventSource = new EventSource(`/api/events/${scan_id}`);
 
+      // Buffers and timers for throttling high-frequency events
+      let progressBuffer: Record<number, ServerProgress> = {};
+      let matchBuffer: MatchEntry[] = [];
+      let throttleTimer: NodeJS.Timeout | null = null;
+
+      const flushBuffers = () => {
+        if (throttleTimer) {
+          clearTimeout(throttleTimer);
+          throttleTimer = null;
+        }
+
+        set(state => {
+          let updates: Partial<ScanState> = {};
+
+          if (Object.keys(progressBuffer).length > 0) {
+            const newFileProgress = { ...state.fileProgress };
+            let updated = false;
+
+            for (const [idxStr, data] of Object.entries(progressBuffer)) {
+              const idx = Number(idxStr);
+              const current = newFileProgress[idx];
+              if (current) {
+                newFileProgress[idx] = {
+                  ...current,
+                  bytesRead: data.bytes_read,
+                  linesScanned: data.lines_scanned,
+                  matchesFound: data.matches_found
+                };
+                updated = true;
+              }
+            }
+            if (updated) {
+              updates.fileProgress = newFileProgress;
+            }
+            progressBuffer = {};
+          }
+
+          if (matchBuffer.length > 0) {
+            updates.matches = [...state.matches, ...matchBuffer];
+            matchBuffer = [];
+          }
+
+          return updates;
+        });
+      };
+
+      const scheduleFlush = () => {
+        if (!throttleTimer) {
+          throttleTimer = setTimeout(flushBuffers, 100);
+        }
+      };
+
+
       eventSource.addEventListener('file_start', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerFileStart = payload.data;
         set(state => {
-          const newMap = new Map(state.fileProgress);
-          newMap.set(data.file_index, {
-            fileName: data.file_name,
-            totalBytes: data.total_bytes,
-            bytesRead: 0,
-            linesScanned: 0,
-            matchesFound: 0,
-            status: 'scanning'
-          });
-          return { fileProgress: newMap };
+          return {
+            fileProgress: {
+              ...state.fileProgress,
+              [data.file_index]: {
+                fileName: data.file_name,
+                totalBytes: data.total_bytes,
+                bytesRead: 0,
+                linesScanned: 0,
+                matchesFound: 0,
+                status: 'scanning'
+              }
+            }
+          };
         });
       });
 
       eventSource.addEventListener('progress', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerProgress = payload.data;
-        set(state => {
-          const newMap = new Map(state.fileProgress);
-          const current = newMap.get(data.file_index);
-          if (current) {
-            newMap.set(data.file_index, {
-              ...current,
-              bytesRead: data.bytes_read,
-              linesScanned: data.lines_scanned,
-              matchesFound: data.matches_found
-            });
-          }
-          return { fileProgress: newMap };
-        });
+        progressBuffer[data.file_index] = data;
+        scheduleFlush();
       });
 
       eventSource.addEventListener('match', (e: any) => {
@@ -159,28 +204,35 @@ export const useScanStore = create<ScanState>((set, get) => ({
           contextBefore: data.context_before || [],
           contextAfter: data.context_after || [],
         };
-        set(state => ({ matches: [...state.matches, match] }));
+        matchBuffer.push(match);
+        scheduleFlush();
       });
 
       eventSource.addEventListener('file_done', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerFileDone = payload.data;
         set(state => {
-          const newMap = new Map(state.fileProgress);
-          const current = newMap.get(data.file_index);
+          const current = state.fileProgress[data.file_index];
           if (current) {
-            newMap.set(data.file_index, { ...current, status: 'done' });
+            return {
+              fileProgress: {
+                ...state.fileProgress,
+                [data.file_index]: { ...current, status: 'done' }
+              }
+            };
           }
-          return { fileProgress: newMap };
+          return state;
         });
       });
 
       eventSource.addEventListener('scan_done', () => {
+        flushBuffers();
         set({ scanStatus: 'done' });
         eventSource.close();
       });
 
       eventSource.onerror = () => {
+        flushBuffers();
         set({ scanStatus: 'error', error: "Stream connection error" });
         eventSource.close();
       };
