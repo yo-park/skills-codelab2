@@ -12,10 +12,11 @@ const ResultArea: React.FC = () => {
     let result = matches;
     if (filter) {
       const lowerFilter = filter.toLowerCase();
+      // ⚡ Bolt: Use pre-computed lowered strings to avoid O(N) string allocations during filter render
       result = matches.filter(m => 
-        m.fileName.toLowerCase().includes(lowerFilter) ||
-        m.content.toLowerCase().includes(lowerFilter) ||
-        m.keyword.toLowerCase().includes(lowerFilter)
+        m.lowered.fileName.includes(lowerFilter) ||
+        m.lowered.content.includes(lowerFilter) ||
+        m.lowered.keyword.includes(lowerFilter)
       );
     }
     return result;
