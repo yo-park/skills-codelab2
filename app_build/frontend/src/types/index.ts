@@ -7,6 +7,11 @@ export interface MatchEntry {
   content: string;
   contextBefore: string[];
   contextAfter: string[];
+  lowered: {
+    fileName: string;
+    keyword: string;
+    content: string;
+  };
 }
 
 export interface FileProgress {
