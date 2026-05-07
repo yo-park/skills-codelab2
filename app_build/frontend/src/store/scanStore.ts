@@ -111,6 +111,55 @@ export const useScanStore = create<ScanState>((set, get) => ({
       // Start SSE listening
       const eventSource = new EventSource(`/api/events/${scan_id}`);
 
+      let progressUpdates = new Map<number, ServerProgress>();
+      let matchUpdates: MatchEntry[] = [];
+      let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const flush = () => {
+        if (flushTimer) {
+          clearTimeout(flushTimer);
+          flushTimer = null;
+        }
+
+        if (progressUpdates.size === 0 && matchUpdates.length === 0) return;
+
+        set(state => {
+          let updatedProgress = state.fileProgress;
+          let updatedMatches = state.matches;
+          let changed = false;
+
+          if (progressUpdates.size > 0) {
+            const newMap = new Map(state.fileProgress);
+            progressUpdates.forEach((data, fileIndex) => {
+              const current = newMap.get(fileIndex);
+              if (current) {
+                newMap.set(fileIndex, {
+                  ...current,
+                  bytesRead: data.bytes_read,
+                  linesScanned: data.lines_scanned,
+                  matchesFound: data.matches_found
+                });
+              }
+            });
+            updatedProgress = newMap;
+            changed = true;
+          }
+
+          if (matchUpdates.length > 0) {
+            updatedMatches = [...state.matches, ...matchUpdates];
+            changed = true;
+          }
+
+          progressUpdates.clear();
+          matchUpdates = [];
+
+          if (changed) {
+            return { fileProgress: updatedProgress, matches: updatedMatches };
+          }
+          return state;
+        });
+      };
+
       eventSource.addEventListener('file_start', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerFileStart = payload.data;
@@ -131,19 +180,10 @@ export const useScanStore = create<ScanState>((set, get) => ({
       eventSource.addEventListener('progress', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerProgress = payload.data;
-        set(state => {
-          const newMap = new Map(state.fileProgress);
-          const current = newMap.get(data.file_index);
-          if (current) {
-            newMap.set(data.file_index, {
-              ...current,
-              bytesRead: data.bytes_read,
-              linesScanned: data.lines_scanned,
-              matchesFound: data.matches_found
-            });
-          }
-          return { fileProgress: newMap };
-        });
+        progressUpdates.set(data.file_index, data);
+        if (!flushTimer) {
+          flushTimer = setTimeout(flush, 100);
+        }
       });
 
       eventSource.addEventListener('match', (e: any) => {
@@ -164,10 +204,14 @@ export const useScanStore = create<ScanState>((set, get) => ({
             content: data.content.toLowerCase()
           }
         };
-        set(state => ({ matches: [...state.matches, match] }));
+        matchUpdates.push(match);
+        if (!flushTimer) {
+          flushTimer = setTimeout(flush, 100);
+        }
       });
 
       eventSource.addEventListener('file_done', (e: any) => {
+        flush();
         const payload = JSON.parse(e.data);
         const data: ServerFileDone = payload.data;
         set(state => {
@@ -181,11 +225,13 @@ export const useScanStore = create<ScanState>((set, get) => ({
       });
 
       eventSource.addEventListener('scan_done', () => {
+        flush();
         set({ scanStatus: 'done' });
         eventSource.close();
       });
 
       eventSource.onerror = () => {
+        flush();
         set({ scanStatus: 'error', error: "Stream connection error" });
         eventSource.close();
       };
