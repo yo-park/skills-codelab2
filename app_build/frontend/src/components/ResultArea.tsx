@@ -13,9 +13,9 @@ const ResultArea: React.FC = () => {
     if (filter) {
       const lowerFilter = filter.toLowerCase();
       result = matches.filter(m => 
-        m.fileName.toLowerCase().includes(lowerFilter) ||
-        m.content.toLowerCase().includes(lowerFilter) ||
-        m.keyword.toLowerCase().includes(lowerFilter)
+        m.lowered.fileName.includes(lowerFilter) ||
+        m.lowered.content.includes(lowerFilter) ||
+        m.lowered.keyword.includes(lowerFilter)
       );
     }
     return result;

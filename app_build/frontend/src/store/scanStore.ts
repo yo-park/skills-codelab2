@@ -158,6 +158,11 @@ export const useScanStore = create<ScanState>((set, get) => ({
           content: data.content,
           contextBefore: data.context_before || [],
           contextAfter: data.context_after || [],
+          lowered: {
+            fileName: data.file_name.toLowerCase(),
+            keyword: data.keyword.toLowerCase(),
+            content: data.content.toLowerCase()
+          }
         };
         set(state => ({ matches: [...state.matches, match] }));
       });
