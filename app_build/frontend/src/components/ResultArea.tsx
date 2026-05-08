@@ -1,17 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useDeferredValue } from 'react';
 import { Table, Download, Filter } from 'lucide-react';
 import { useScanStore } from '../store/scanStore';
 
 const ResultArea: React.FC = () => {
   const { matches } = useScanStore();
   const [filter, setFilter] = useState('');
+
+  // ⚡ Bolt Optimization: Defer the expensive filtering operation
+  // This prevents the text input from lagging when typing quickly,
+  // especially when there are thousands of matches in the result set.
+  const deferredFilter = useDeferredValue(filter);
+
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
 
   const filteredMatches = useMemo(() => {
     let result = matches;
-    if (filter) {
-      const lowerFilter = filter.toLowerCase();
+    if (deferredFilter) {
+      const lowerFilter = deferredFilter.toLowerCase();
       result = matches.filter(m => 
         m.lowered.fileName.includes(lowerFilter) ||
         m.lowered.content.includes(lowerFilter) ||
@@ -19,7 +25,7 @@ const ResultArea: React.FC = () => {
       );
     }
     return result;
-  }, [matches, filter]);
+  }, [matches, deferredFilter]);
 
   const totalPages = Math.ceil(filteredMatches.length / pageSize);
   const paginatedMatches = useMemo(() => {
@@ -30,7 +36,7 @@ const ResultArea: React.FC = () => {
   // Reset to page 1 when filter or page size changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [filter, pageSize]);
+  }, [deferredFilter, pageSize]);
 
   const downloadCSV = () => {
     const headers = ['File', 'Line', 'Keyword', 'Content'];
