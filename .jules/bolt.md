@@ -4,3 +4,6 @@
 ## 2024-05-06 - Pre-compute Lowercase Searchable Fields for Log Matches
 **Learning:** In high-frequency React components like `ResultArea` which dynamically filter results using `toLowerCase()`, computing these lowercase strings during the render loop/memoization phase causes unnecessary allocation overhead on every filter keypress. By hoisting the string conversions and caching them at the point of ingestion (SSE data event), component re-renders are noticeably more efficient.
 **Action:** Always verify if search fields or repetitive string format transformations can be cached or computed as data enters the application to avoid performing those operations repeatedly in performance-sensitive renders.
+## 2024-05-10 - Batch SSE State Updates for React Rendering
+**Learning:** Frequent SSE (Server-Sent Events) triggering individual Zustand `set()` calls forces excessive React array creations and component re-renders. High-throughput data streams can essentially lock the UI thread if state updates are processed 1-by-1.
+**Action:** Always batch high-frequency stream events. Buffering items and flushing them via `setTimeout()` (e.g. 100ms) prevents rendering bottlenecks and O(N^2) array creation overhead while maintaining the "real-time" feel.
