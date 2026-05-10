@@ -3,7 +3,7 @@ import { Table, Download, Filter } from 'lucide-react';
 import { useScanStore } from '../store/scanStore';
 
 const ResultArea: React.FC = () => {
-  const { matches } = useScanStore();
+  const matches = useScanStore(state => state.matches);
   const [filter, setFilter] = useState('');
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
