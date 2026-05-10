@@ -1,6 +1,7 @@
 import React from 'react';
 import { Search, AlignLeft, Clock, Play, Square, RotateCcw } from 'lucide-react';
 import { useScanStore } from '../store/scanStore';
+import { shallow } from 'zustand/shallow';
 
 const KeywordsArea: React.FC = () => {
   const { 
@@ -9,7 +10,21 @@ const KeywordsArea: React.FC = () => {
     startTime, setStartTime,
     endTime, setEndTime,
     scanStatus, startScan, stopScan, resetScan, files
-  } = useScanStore();
+  } = useScanStore(state => ({
+    keywords: state.keywords,
+    setKeywords: state.setKeywords,
+    contextLines: state.contextLines,
+    setContextLines: state.setContextLines,
+    startTime: state.startTime,
+    setStartTime: state.setStartTime,
+    endTime: state.endTime,
+    setEndTime: state.setEndTime,
+    scanStatus: state.scanStatus,
+    startScan: state.startScan,
+    stopScan: state.stopScan,
+    resetScan: state.resetScan,
+    files: state.files
+  }), shallow);
   const isRunning = scanStatus === 'running';
 
   return (
