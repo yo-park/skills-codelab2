@@ -108,6 +108,25 @@ export const useScanStore = create<ScanState>((set, get) => ({
       const { scan_id } = await response.json();
       set({ scanId: scan_id });
 
+      // ⚡ Bolt Optimization: Batch SSE Match Events
+      // Instead of calling set() for every single match (which causes O(N^2) memory cloning
+      // and blocks the main thread with re-renders), we accumulate matches and flush them
+      // periodically. This drastically reduces the number of re-renders and memory allocations.
+      let matchBatch: MatchEntry[] = [];
+      let matchBatchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+      const flushMatches = () => {
+        if (matchBatch.length > 0) {
+          const batchToFlush = [...matchBatch];
+          matchBatch = [];
+          set(state => ({ matches: [...state.matches, ...batchToFlush] }));
+        }
+        if (matchBatchTimeout) {
+          clearTimeout(matchBatchTimeout);
+          matchBatchTimeout = null;
+        }
+      };
+
       // Start SSE listening
       const eventSource = new EventSource(`/api/events/${scan_id}`);
 
@@ -164,7 +183,11 @@ export const useScanStore = create<ScanState>((set, get) => ({
             content: data.content.toLowerCase()
           }
         };
-        set(state => ({ matches: [...state.matches, match] }));
+
+        matchBatch.push(match);
+        if (!matchBatchTimeout) {
+          matchBatchTimeout = setTimeout(flushMatches, 150);
+        }
       });
 
       eventSource.addEventListener('file_done', (e: any) => {
@@ -181,11 +204,13 @@ export const useScanStore = create<ScanState>((set, get) => ({
       });
 
       eventSource.addEventListener('scan_done', () => {
+        flushMatches();
         set({ scanStatus: 'done' });
         eventSource.close();
       });
 
       eventSource.onerror = () => {
+        flushMatches();
         set({ scanStatus: 'error', error: "Stream connection error" });
         eventSource.close();
       };

@@ -4,3 +4,6 @@
 ## 2024-05-06 - Pre-compute Lowercase Searchable Fields for Log Matches
 **Learning:** In high-frequency React components like `ResultArea` which dynamically filter results using `toLowerCase()`, computing these lowercase strings during the render loop/memoization phase causes unnecessary allocation overhead on every filter keypress. By hoisting the string conversions and caching them at the point of ingestion (SSE data event), component re-renders are noticeably more efficient.
 **Action:** Always verify if search fields or repetitive string format transformations can be cached or computed as data enters the application to avoid performing those operations repeatedly in performance-sensitive renders.
+## 2024-05-11 - Batch High-Frequency SSE Events Before Updating React State
+**Learning:** In high-frequency log scanning applications, blindly updating global state (like a Zustand store) and appending to a large array on every single SSE event causes drastic O(N^2) memory cloning and freezes the main thread due to constant React re-renders.
+**Action:** When ingesting rapid streams of events (like log matches), always implement batching at the state-management boundary so the UI updates in measured intervals (e.g., 150ms) rather than once per event.
