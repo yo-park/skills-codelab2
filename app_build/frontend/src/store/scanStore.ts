@@ -111,6 +111,21 @@ export const useScanStore = create<ScanState>((set, get) => ({
       // Start SSE listening
       const eventSource = new EventSource(`/api/events/${scan_id}`);
 
+      let matchBuffer: MatchEntry[] = [];
+      let flushTimeout: number | null = null;
+
+      const flushMatches = () => {
+        if (matchBuffer.length > 0) {
+          const currentBuffer = [...matchBuffer];
+          matchBuffer = [];
+          set(state => ({ matches: [...state.matches, ...currentBuffer] }));
+        }
+        if (flushTimeout !== null) {
+          clearTimeout(flushTimeout);
+          flushTimeout = null;
+        }
+      };
+
       eventSource.addEventListener('file_start', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerFileStart = payload.data;
@@ -164,7 +179,13 @@ export const useScanStore = create<ScanState>((set, get) => ({
             content: data.content.toLowerCase()
           }
         };
-        set(state => ({ matches: [...state.matches, match] }));
+
+        matchBuffer.push(match);
+        if (matchBuffer.length >= 100) {
+          flushMatches();
+        } else if (flushTimeout === null) {
+          flushTimeout = window.setTimeout(flushMatches, 50);
+        }
       });
 
       eventSource.addEventListener('file_done', (e: any) => {
@@ -181,11 +202,13 @@ export const useScanStore = create<ScanState>((set, get) => ({
       });
 
       eventSource.addEventListener('scan_done', () => {
+        flushMatches();
         set({ scanStatus: 'done' });
         eventSource.close();
       });
 
       eventSource.onerror = () => {
+        flushMatches();
         set({ scanStatus: 'error', error: "Stream connection error" });
         eventSource.close();
       };
