@@ -5,13 +5,25 @@ import { useScanStore } from '../store/scanStore';
 const ResultArea: React.FC = () => {
   const { matches } = useScanStore();
   const [filter, setFilter] = useState('');
+  const [debouncedFilter, setDebouncedFilter] = useState('');
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // ⚡ Bolt: Debounce the filter state to prevent expensive array filtering on every keystroke
+  // Impact: Reduces main thread blocking by only recalculating the filtered log matches when typing pauses (300ms).
+  // Without this, typing in the filter with thousands of log matches would cause severe UI lag.
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilter(filter);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [filter]);
+
   const filteredMatches = useMemo(() => {
     let result = matches;
-    if (filter) {
-      const lowerFilter = filter.toLowerCase();
+    if (debouncedFilter) {
+      const lowerFilter = debouncedFilter.toLowerCase();
       result = matches.filter(m => 
         m.lowered.fileName.includes(lowerFilter) ||
         m.lowered.content.includes(lowerFilter) ||
@@ -19,7 +31,7 @@ const ResultArea: React.FC = () => {
       );
     }
     return result;
-  }, [matches, filter]);
+  }, [matches, debouncedFilter]);
 
   const totalPages = Math.ceil(filteredMatches.length / pageSize);
   const paginatedMatches = useMemo(() => {
