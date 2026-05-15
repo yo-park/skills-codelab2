@@ -4,3 +4,6 @@
 ## 2024-05-06 - Pre-compute Lowercase Searchable Fields for Log Matches
 **Learning:** In high-frequency React components like `ResultArea` which dynamically filter results using `toLowerCase()`, computing these lowercase strings during the render loop/memoization phase causes unnecessary allocation overhead on every filter keypress. By hoisting the string conversions and caching them at the point of ingestion (SSE data event), component re-renders are noticeably more efficient.
 **Action:** Always verify if search fields or repetitive string format transformations can be cached or computed as data enters the application to avoid performing those operations repeatedly in performance-sensitive renders.
+## 2024-05-15 - Debounce synchronous array filtering in UI
+**Learning:** The log filtering in `ResultArea.tsx` used `filter` value to synchronously recalculate the `filteredMatches` inside a `useMemo` block. When dealing with potentially thousands of results from the backend, executing `.filter` and `.includes` checks on every keystroke blocks the main thread, making the UI feel extremely sluggish.
+**Action:** Implemented a debounced filter value with a `300ms` `setTimeout` to prevent constant recalculation. Always look for synchronous string/array searching operations bound directly to user input, and introduce debouncing to keep the UI responsive.
