@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { FileUp, Cpu, Hash, Type, Regex } from 'lucide-react';
 import { useScanStore } from '../store/scanStore';
+import { useShallow } from 'zustand/react/shallow';
 
 const FileAttachArea: React.FC = () => {
   const { 
@@ -10,7 +11,19 @@ const FileAttachArea: React.FC = () => {
     caseSensitive, setCaseSensitive,
     patternMode, setPatternMode,
     scanStatus
-  } = useScanStore();
+  } = useScanStore(useShallow(state => ({
+    files: state.files,
+    setFiles: state.setFiles,
+    concurrency: state.concurrency,
+    setConcurrency: state.setConcurrency,
+    maxMatchesPerFile: state.maxMatchesPerFile,
+    setMaxMatchesPerFile: state.setMaxMatchesPerFile,
+    caseSensitive: state.caseSensitive,
+    setCaseSensitive: state.setCaseSensitive,
+    patternMode: state.patternMode,
+    setPatternMode: state.setPatternMode,
+    scanStatus: state.scanStatus
+  })));
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isRunning = scanStatus === 'running';

@@ -3,7 +3,7 @@ import { Activity } from 'lucide-react';
 import { useScanStore } from '../store/scanStore';
 
 const ProgressArea: React.FC = () => {
-  const { fileProgress } = useScanStore();
+  const fileProgress = useScanStore(state => state.fileProgress);
   
   const progressItems = Array.from(fileProgress.entries());
 
