@@ -111,6 +111,19 @@ export const useScanStore = create<ScanState>((set, get) => ({
       // Start SSE listening
       const eventSource = new EventSource(`/api/events/${scan_id}`);
 
+      // Bolt Optimization: Batch high-frequency SSE events to reduce React re-renders and memory allocations.
+      let matchBuffer: MatchEntry[] = [];
+      let matchTimer: any = null;
+      let matchIdCounter = 0;
+
+      const flushMatches = () => {
+        if (matchBuffer.length > 0) {
+          const buffer = matchBuffer;
+          matchBuffer = [];
+          set(state => ({ matches: [...state.matches, ...buffer] }));
+        }
+      };
+
       eventSource.addEventListener('file_start', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerFileStart = payload.data;
@@ -149,8 +162,11 @@ export const useScanStore = create<ScanState>((set, get) => ({
       eventSource.addEventListener('match', (e: any) => {
         const payload = JSON.parse(e.data);
         const data: ServerMatch = payload.data;
+
+        matchIdCounter++;
+
         const match: MatchEntry = {
-          id: Math.random().toString(36).substring(2),
+          id: `match_${Date.now()}_${matchIdCounter}`,
           fileIndex: data.file_index,
           fileName: data.file_name,
           lineNumber: data.line_number,
@@ -164,7 +180,21 @@ export const useScanStore = create<ScanState>((set, get) => ({
             content: data.content.toLowerCase()
           }
         };
-        set(state => ({ matches: [...state.matches, match] }));
+
+        matchBuffer.push(match);
+
+        if (matchBuffer.length >= 500) {
+          if (matchTimer) {
+            clearTimeout(matchTimer);
+            matchTimer = null;
+          }
+          flushMatches();
+        } else if (!matchTimer) {
+          matchTimer = setTimeout(() => {
+            flushMatches();
+            matchTimer = null;
+          }, 100);
+        }
       });
 
       eventSource.addEventListener('file_done', (e: any) => {
@@ -181,11 +211,15 @@ export const useScanStore = create<ScanState>((set, get) => ({
       });
 
       eventSource.addEventListener('scan_done', () => {
+        if (matchTimer) clearTimeout(matchTimer);
+        flushMatches();
         set({ scanStatus: 'done' });
         eventSource.close();
       });
 
       eventSource.onerror = () => {
+        if (matchTimer) clearTimeout(matchTimer);
+        flushMatches();
         set({ scanStatus: 'error', error: "Stream connection error" });
         eventSource.close();
       };
