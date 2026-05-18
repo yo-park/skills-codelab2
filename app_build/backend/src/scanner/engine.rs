@@ -86,6 +86,7 @@ impl ScanEngine {
         let mut before_buffer: VecDeque<String> = VecDeque::with_capacity(self.config.context_lines);
         
         let mut line = String::new();
+        let mut search_content_lower = String::with_capacity(512);
         let mut pending_match: Option<MatchEntry> = None;
         let mut lines_after_needed = 0;
 
@@ -96,28 +97,38 @@ impl ScanEngine {
                 Ok(n) => {
                     bytes_read += n as u64;
                     lines_scanned += 1;
-                    let line_content = line.trim_end().to_string();
+                    let line_content_str = line.trim_end();
 
                     if let Some(ref mut m) = pending_match {
-                        m.context_after.push(line_content.clone());
+                        m.context_after.push(line_content_str.to_string());
                         lines_after_needed -= 1;
                         if lines_after_needed == 0 {
                             let _ = tx.send(ScanEvent::Match(pending_match.take().unwrap()));
                         }
                     }
 
+                    // Helper to push string slice to context buffer with allocation reuse
+                    let push_to_context = |buffer: &mut VecDeque<String>, content: &str, limit: usize| {
+                        if limit > 0 {
+                            let mut new_str = if buffer.len() >= limit {
+                                let mut s = buffer.pop_front().unwrap();
+                                s.clear();
+                                s
+                            } else {
+                                String::with_capacity(content.len())
+                            };
+                            new_str.push_str(content);
+                            buffer.push_back(new_str);
+                        }
+                    };
+
                     // Time Range Filtering
                     if self.config.start_time.is_some() || self.config.end_time.is_some() {
-                        if let Some(caps) = self.ts_regex.captures(&line_content) {
+                        if let Some(caps) = self.ts_regex.captures(line_content_str) {
                             let ts = caps.get(1).map(|m| m.as_str()).unwrap_or("");
                             if let Some(ref start) = self.config.start_time {
                                 if ts < start.as_str() {
-                                    if self.config.context_lines > 0 {
-                                        if before_buffer.len() >= self.config.context_lines {
-                                            before_buffer.pop_front();
-                                        }
-                                        before_buffer.push_back(line_content);
-                                    }
+                                    push_to_context(&mut before_buffer, line_content_str, self.config.context_lines);
                                     continue;
                                 }
                             }
@@ -126,12 +137,7 @@ impl ScanEngine {
                                     // Once we pass the end time, if logs are sorted, we could break, 
                                     // but we don't know if they are sorted by time across all files.
                                     // For safety, we just skip.
-                                    if self.config.context_lines > 0 {
-                                        if before_buffer.len() >= self.config.context_lines {
-                                            before_buffer.pop_front();
-                                        }
-                                        before_buffer.push_back(line_content);
-                                    }
+                                    push_to_context(&mut before_buffer, line_content_str, self.config.context_lines);
                                     continue;
                                 }
                             }
@@ -141,7 +147,7 @@ impl ScanEngine {
                     let mut found_kw = None;
                     if matches!(self.config.pattern_mode, PatternMode::Regex) {
                         for (i, re) in self.regexes.iter().enumerate() {
-                            if re.is_match(&line_content) {
+                            if re.is_match(line_content_str) {
                                 found_kw = Some(self.keywords[i].clone());
                                 break;
                             }
@@ -149,16 +155,28 @@ impl ScanEngine {
                     } else {
                         let is_case_insensitive = self.config.case_sensitive == "false";
                         if is_case_insensitive {
-                            let search_content = line_content.to_lowercase();
-                            for (i, search_kw) in self.search_keywords.iter().enumerate() {
-                                if search_content.contains(search_kw) {
-                                    found_kw = Some(self.keywords[i].clone());
-                                    break;
+                            if line_content_str.is_ascii() {
+                                search_content_lower.clear();
+                                search_content_lower.push_str(line_content_str);
+                                search_content_lower.make_ascii_lowercase();
+                                for (i, search_kw) in self.search_keywords.iter().enumerate() {
+                                    if search_content_lower.contains(search_kw) {
+                                        found_kw = Some(self.keywords[i].clone());
+                                        break;
+                                    }
+                                }
+                            } else {
+                                let search_content = line_content_str.to_lowercase();
+                                for (i, search_kw) in self.search_keywords.iter().enumerate() {
+                                    if search_content.contains(search_kw) {
+                                        found_kw = Some(self.keywords[i].clone());
+                                        break;
+                                    }
                                 }
                             }
                         } else {
                             for (i, search_kw) in self.search_keywords.iter().enumerate() {
-                                if line_content.contains(search_kw) {
+                                if line_content_str.contains(search_kw) {
                                     found_kw = Some(self.keywords[i].clone());
                                     break;
                                 }
@@ -177,7 +195,7 @@ impl ScanEngine {
                             file_name: file_name.clone(),
                             line_number: lines_scanned,
                             keyword: kw,
-                            content: line_content.clone(),
+                            content: line_content_str.to_string(),
                             context_before: before_buffer.iter().cloned().collect(),
                             context_after: Vec::new(),
                         };
@@ -194,12 +212,7 @@ impl ScanEngine {
                         }
                     }
 
-                    if self.config.context_lines > 0 {
-                        if before_buffer.len() >= self.config.context_lines {
-                            before_buffer.pop_front();
-                        }
-                        before_buffer.push_back(line_content);
-                    }
+                    push_to_context(&mut before_buffer, line_content_str, self.config.context_lines);
 
                     if lines_scanned % 1000 == 0 {
                         let _ = tx.send(ScanEvent::Progress {
